@@ -19,7 +19,17 @@ def ask_alexa(message, context=None):
     if not is_valid_api_key(provider_doc.get_password("api_key")):
         return _(f"API Key is missing or masked as asterisks for {provider_doc.name}. Please re-enter it in settings.")
         
-    return process_ai_request(provider_doc, message)
+    use_erpnext_context = True
+    if isinstance(context, str):
+        try:
+            import json
+            context = json.loads(context)
+        except Exception:
+            pass
+    if isinstance(context, dict):
+        use_erpnext_context = context.get("use_erpnext_context", True)
+        
+    return process_ai_request(provider_doc, message, use_erpnext_context)
 
 def get_default_provider_name():
     return frappe.db.get_single_value("AI Assistant App Setting", "ai_assistant_provider")
@@ -36,16 +46,15 @@ def is_valid_api_key(api_key):
     val = str(api_key).strip()
     return bool(val) and val.lower() != "none" and set(val) != {"*"}
 
-def process_ai_request(provider_doc, message):
-    print(provider_doc)
+def process_ai_request(provider_doc, message, use_erpnext_context=True):
     try:
         if provider_doc.provider == "Gemini":
             service = GeminiService(provider_doc)
-            return service.ask_alexa(message)
+            return service.ask_alexa(message, use_erpnext_context)
             
         elif provider_doc.provider == "OpenRouter":
             service = OpenRouterService(provider_doc)
-            result, usage = service.generate(message)
+            result, usage = service.generate(message, use_erpnext_context=use_erpnext_context)
             return result
             
         else:

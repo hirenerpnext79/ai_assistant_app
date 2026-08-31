@@ -17,37 +17,42 @@ class OpenRouterService:
         if not self.base_url:
             frappe.throw(frappe._("Base URL is required for OpenRouter Provider Configuration."))
 
-    def generate(self, user_message, system_prompt=None):
+    def generate(self, user_message, system_prompt=None, use_erpnext_context=True):
         headers = self.get_request_headers()
         
         from ai_assistant_app.utils import ERPNextTools
         tools_manager = ERPNextTools()
         query_erpnext_data = tools_manager.get_query_tool(self.provider_doc)
 
-        if not system_prompt or system_prompt == "You are a helpful assistant.":
-            system_prompt = tools_manager.get_system_prompt(self.provider_doc)
+        tools = []
+        if use_erpnext_context:
+            if not system_prompt or system_prompt == "You are a helpful assistant.":
+                system_prompt = tools_manager.get_system_prompt(self.provider_doc)
+            
+            tools = [{
+                "type": "function",
+                "function": {
+                    "name": "query_erpnext_data",
+                    "description": "Query ERPNext data using DocType, filters and fields. Use this when the user asks for data like overdue invoices, user lists, etc.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "doctype": { "type": "string" },
+                            "fields": { "type": "array", "items": { "type": "string" } },
+                            "filters": { "type": "string", "description": "JSON string representing a dictionary, even if empty, like '{}'" }
+                        },
+                        "required": ["doctype", "fields", "filters"]
+                    }
+                }
+            }]
+        else:
+            if not system_prompt:
+                system_prompt = "You are a helpful assistant."
 
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
         ]
-        
-        tools = [{
-            "type": "function",
-            "function": {
-                "name": "query_erpnext_data",
-                "description": "Query ERPNext data using DocType, filters and fields. Use this when the user asks for data like overdue invoices, user lists, etc.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "doctype": { "type": "string" },
-                        "fields": { "type": "array", "items": { "type": "string" } },
-                        "filters": { "type": "string", "description": "JSON string representing a dictionary, even if empty, like '{}'" }
-                    },
-                    "required": ["doctype", "fields", "filters"]
-                }
-            }
-        }]
 
         max_turns = 3
         current_turn = 0
@@ -59,9 +64,10 @@ class OpenRouterService:
             
             payload = {
                 "model": self.model,
-                "messages": messages,
-                "tools": tools
+                "messages": messages
             }
+            if tools:
+                payload["tools"] = tools
             
             response = requests.post(self.base_url, headers=headers, json=payload)
             self.handle_api_errors(response)

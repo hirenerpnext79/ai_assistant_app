@@ -33,6 +33,12 @@ ai_assistant_app.Assistant = {
                 <input type="text" id="ask-alexa-input" placeholder="Ask anything..." autocomplete="off">
                 <button id="ask-alexa-send">&#10148;</button>
             </div>
+            <div class="panel-footer" style="padding: 0 10px 10px 10px; font-size: 12px; display: flex; align-items: center; justify-content: flex-end; color: #6b7280; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; background: #fff;">
+                <label style="margin: 0; display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="ask-alexa-use-context" checked style="margin-right: 5px; cursor: pointer;">
+                    Use ERPNext Context
+                </label>
+            </div>
         `;
         document.body.appendChild(panel);
 
@@ -92,7 +98,8 @@ ai_assistant_app.Assistant = {
             args: {
                 message: text,
                 context: {
-                    route: frappe.get_route ? frappe.get_route() : null
+                    route: frappe.get_route ? frappe.get_route() : null,
+                    use_erpnext_context: document.getElementById("ask-alexa-use-context") ? document.getElementById("ask-alexa-use-context").checked : true
                 }
             },
             callback: (r) => {
