@@ -37,6 +37,7 @@ def is_valid_api_key(api_key):
     return bool(val) and val.lower() != "none" and set(val) != {"*"}
 
 def process_ai_request(provider_doc, message):
+    print(provider_doc)
     try:
         if provider_doc.provider == "Gemini":
             service = GeminiService(provider_doc)

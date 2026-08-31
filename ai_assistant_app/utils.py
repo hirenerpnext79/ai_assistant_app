@@ -5,9 +5,17 @@ class ERPNextTools:
     def __init__(self):
         self.captured_data = []
         
-    def get_query_tool(self):
+    def get_query_tool(self, provider_doc=None):
         def query_erpnext_data(doctype: str, fields: list, filters: str) -> dict:
             """Query ERPNext data using DocType, filters and fields. Use this when the user asks for data like overdue invoices, user lists, etc."""
+            allowed_doctypes = []
+            if provider_doc and provider_doc.get("allowed_doctypes"):
+                allowed_doctypes = [d.document_type for d in provider_doc.get("allowed_doctypes")]
+                
+            if not allowed_doctypes or doctype not in allowed_doctypes:
+                error_msg = f"Access Denied: The AI is not permitted to query the '{doctype}' DocType. Please tell the user to add it to the Allowed DocTypes table."
+                self.captured_data.append({"doctype": doctype, "error": error_msg})
+                return {"error": error_msg}
             try:
                 parsed_filters = json.loads(filters) if filters else {}
             except:
@@ -29,11 +37,7 @@ class ERPNextTools:
             doctype_list = [d.document_type for d in provider_doc.get("allowed_doctypes")]
             doctype_list_str = ", ".join(doctype_list)
         else:
-            try:
-                all_doctypes = [d.name for d in frappe.get_all("DocType", limit=2000)]
-                doctype_list_str = ", ".join(all_doctypes)
-            except:
-                doctype_list_str = "User, Sales Invoice, Customer, Item"
+            doctype_list_str = "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
 
         custom_prompt = provider_doc.get("system_prompt") if provider_doc else None
 

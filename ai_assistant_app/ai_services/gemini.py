@@ -49,7 +49,7 @@ class GeminiService:
         
         from ai_assistant_app.utils import ERPNextTools
         tools_manager = ERPNextTools()
-        query_erpnext_data = tools_manager.get_query_tool()
+        query_erpnext_data = tools_manager.get_query_tool(self.provider_doc)
 
         system_instruction = tools_manager.get_system_prompt(self.provider_doc)
 

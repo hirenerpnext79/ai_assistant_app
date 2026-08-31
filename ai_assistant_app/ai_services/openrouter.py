@@ -22,7 +22,7 @@ class OpenRouterService:
         
         from ai_assistant_app.utils import ERPNextTools
         tools_manager = ERPNextTools()
-        query_erpnext_data = tools_manager.get_query_tool()
+        query_erpnext_data = tools_manager.get_query_tool(self.provider_doc)
 
         if not system_prompt or system_prompt == "You are a helpful assistant.":
             system_prompt = tools_manager.get_system_prompt(self.provider_doc)
