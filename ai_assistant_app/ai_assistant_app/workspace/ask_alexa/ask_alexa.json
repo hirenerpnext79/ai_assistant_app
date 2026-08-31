@@ -1,0 +1,58 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"b7r116Big7\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Ai Assistant App</span>\",\"col\":12}},{\"id\":\"VUiHedx9nX\",\"type\":\"card\",\"data\":{\"card_name\":\"Ask Alexa Setting\",\"col\":4}}]",
+ "creation": "2026-08-31 11:27:27.896737",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Ask Alexa",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Ask Alexa Setting",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "AI Assistant Provider",
+   "link_count": 0,
+   "link_to": "AI Assistant Provider",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Alexa Log",
+   "link_count": 0,
+   "link_to": "Alexa Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-08-31 12:20:00.054052",
+ "modified_by": "Administrator",
+ "module": "Ai Assistant App",
+ "name": "Ask Alexa",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 34.0,
+ "shortcuts": [],
+ "title": "Ask Alexa"
+}

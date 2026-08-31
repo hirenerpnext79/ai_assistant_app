@@ -1,32 +1,57 @@
 import frappe
 from frappe import _
 from ai_assistant_app.ai_services.gemini import GeminiService
+from ai_assistant_app.ai_services.openrouter import OpenRouterService
 
 @frappe.whitelist()
 def ask_alexa(message, context=None):
     if not message:
         return _("Please say something!")
     
-    # 1. Fetch AI Assistant Provider (Gemini)
-    provider = frappe.get_all(
-        "AI Assistant Provider",
-        filters={"provider": "Gemini", "status": "Active"},
-        limit=1
-    )
-    
-    if not provider:
-        return _("Please configure an active Gemini AI Assistant Provider.")
+    provider_name = get_default_provider_name()
+    if not provider_name:
+        return _("Please configure a default AI Assistant Provider in AI Assistant App Setting.")
         
-    provider_doc = frappe.get_doc("AI Assistant Provider", provider[0].name)
-    
-    if not provider_doc.get_password("api_key"):
-        return _("API Key is missing for the Gemini Provider.")
+    provider_doc = get_active_provider_doc(provider_name)
+    if getattr(provider_doc, "error", None):
+        return provider_doc.error
         
+    if not is_valid_api_key(provider_doc.get_password("api_key")):
+        return _(f"API Key is missing or masked as asterisks for {provider_doc.name}. Please re-enter it in settings.")
+        
+    return process_ai_request(provider_doc, message)
+
+def get_default_provider_name():
+    return frappe.db.get_single_value("AI Assistant App Setting", "ai_assistant_provider")
+
+def get_active_provider_doc(provider_name):
+    provider_doc = frappe.get_doc("AI Assistant Provider", provider_name)
+    if provider_doc.status != "Active":
+        provider_doc.error = _("The configured default AI Assistant Provider is not active.")
+    return provider_doc
+
+def is_valid_api_key(api_key):
+    if not api_key:
+        return False
+    val = str(api_key).strip()
+    return bool(val) and val.lower() != "none" and set(val) != {"*"}
+
+def process_ai_request(provider_doc, message):
     try:
-        service = GeminiService(provider_doc)
-        return service.ask_alexa(message)
+        if provider_doc.provider == "Gemini":
+            service = GeminiService(provider_doc)
+            return service.ask_alexa(message)
+            
+        elif provider_doc.provider == "OpenRouter":
+            service = OpenRouterService(provider_doc)
+            result, usage = service.generate(message)
+            return result
+            
+        else:
+            return _("Selected provider is not supported for chat yet.")
+            
     except Exception as e:
-        frappe.log_error(title="Gemini API Error", message=str(e))
+        frappe.log_error(title="AI API Error", message=str(e))
         return _(f"An error occurred while contacting the AI provider: {str(e)}")
 
 @frappe.whitelist()
@@ -38,6 +63,5 @@ def get_chat_history():
         order_by="creation desc",
         limit=50
     )
-    
     logs.reverse()
     return logs

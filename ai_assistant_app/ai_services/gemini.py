@@ -8,6 +8,7 @@ class GeminiService:
         self.api_key = (provider_doc.get_password("api_key") or "").strip()
         self.model = (provider_doc.model or "gemini-1.5-flash").strip()
         self.base_url = (provider_doc.base_url or "https://generativelanguage.googleapis.com/v1beta").strip()
+        self.provider_doc = provider_doc
 
     def log_interaction(self, user_query, ai_response, response_data=None, api_response=None, usage_token=0, usage_details=None):
         try:
@@ -46,31 +47,11 @@ class GeminiService:
     def ask_alexa(self, message):
         client = genai.Client(api_key=self.api_key)
         
-        captured_data = []
+        from ai_assistant_app.utils import ERPNextTools
+        tools_manager = ERPNextTools()
+        query_erpnext_data = tools_manager.get_query_tool()
 
-        def query_erpnext_data(doctype: str, fields: list[str], filters: str) -> dict:
-            """Query ERPNext data using DocType, filters and fields. Use this when the user asks for data like overdue invoices, user lists, etc."""
-            try:
-                parsed_filters = json.loads(filters) if filters else {}
-            except:
-                parsed_filters = {}
-            
-            try:
-                data = frappe.get_all(doctype, filters=parsed_filters, fields=fields, limit=50)
-                data = json.loads(frappe.as_json(data))
-                captured_data.append({"doctype": doctype, "data": data})
-                return {"data": data}
-            except Exception as e:
-                captured_data.append({"doctype": doctype, "error": str(e)})
-                return {"error": str(e)}
-
-        try:
-            all_doctypes = [d.name for d in frappe.get_all("DocType", limit=2000)]
-            doctype_list_str = ", ".join(all_doctypes)
-        except:
-            doctype_list_str = "User, Sales Invoice, Customer, Item"
-
-        system_instruction = f"You are Alexa, an ERPNext AI Assistant. You have access to a tool called query_erpnext_data to fetch data from the ERPNext database. When a user asks for information, use the tool if needed, then format the result nicely for the user. Important rule: the filters should always be a valid JSON string representing a dictionary, even if empty, like '{{}}'. And ALWAYS return actual field names for 'fields'. Here is the list of ALL valid DocTypes in the system (core and custom) to help you map the user's request: {doctype_list_str}."
+        system_instruction = tools_manager.get_system_prompt(self.provider_doc)
 
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -95,7 +76,7 @@ class GeminiService:
                 }
             usage_details_str = json.dumps(usage_details_dict) if usage_details_dict else None
             
-            log_data = captured_data[0] if captured_data else None
+            log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
             self.log_interaction(message, response_text, log_data, response.model_dump_json(), total_tokens, usage_details_str)
             
             return response_text
