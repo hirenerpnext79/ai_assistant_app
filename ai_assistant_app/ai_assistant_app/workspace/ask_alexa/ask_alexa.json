@@ -16,7 +16,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Ask Alexa Setting",
-   "link_count": 2,
+   "link_count": 3,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -40,9 +40,19 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Assistant App Setting",
+   "link_count": 0,
+   "link_to": "AI Assistant App Setting",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-08-31 12:20:00.054052",
+ "modified": "2026-08-31 16:47:59.536761",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "Ask Alexa",

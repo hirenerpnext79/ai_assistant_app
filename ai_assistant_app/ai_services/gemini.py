@@ -44,14 +44,14 @@ class GeminiService:
         )
         return response.text, {}
 
-    def ask_alexa(self, message, use_erpnext_context=True):
+    def ask_alexa(self, message):
         client = genai.Client(api_key=self.api_key)
         
         from ai_assistant_app.utils import ERPNextTools
         tools_manager = ERPNextTools()
         query_erpnext_data = tools_manager.get_query_tool(self.provider_doc)
 
-        if use_erpnext_context:
+        if tools_manager.is_erpnext_context_enabled():
             system_instruction = tools_manager.get_system_prompt(self.provider_doc)
             config = types.GenerateContentConfig(
                 system_instruction=system_instruction,

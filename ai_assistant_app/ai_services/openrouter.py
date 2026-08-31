@@ -17,7 +17,7 @@ class OpenRouterService:
         if not self.base_url:
             frappe.throw(frappe._("Base URL is required for OpenRouter Provider Configuration."))
 
-    def generate(self, user_message, system_prompt=None, use_erpnext_context=True):
+    def generate(self, user_message, system_prompt=None):
         headers = self.get_request_headers()
         
         from ai_assistant_app.utils import ERPNextTools
@@ -25,7 +25,7 @@ class OpenRouterService:
         query_erpnext_data = tools_manager.get_query_tool(self.provider_doc)
 
         tools = []
-        if use_erpnext_context:
+        if tools_manager.is_erpnext_context_enabled():
             if not system_prompt or system_prompt == "You are a helpful assistant.":
                 system_prompt = tools_manager.get_system_prompt(self.provider_doc)
             

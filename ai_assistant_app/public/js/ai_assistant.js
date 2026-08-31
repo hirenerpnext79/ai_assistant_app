@@ -3,27 +3,53 @@ frappe.provide("ai_assistant_app");
 
 ai_assistant_app.Assistant = {
     init: function() {
-        this.setup_ui();
-        this.bind_events();
-        this.setup_menu_item();
+        frappe.call({
+            method: "frappe.client.get",
+            args: {
+                doctype: "AI Assistant App Setting",
+                name: "AI Assistant App Setting"
+            },
+            callback: (r) => {
+                const settings = r.message || {};
+                this.chatbot_label = settings.chatbot_label || "Ask Alexa";
+                this.chatbot_icon = settings.chatbot_icon || "/assets/ai_assistant_app/images/alexa_icon.png";
+                this.enable_erpnext_context = settings.enable_erpnext_context === undefined ? 1 : settings.enable_erpnext_context;
+                
+                this.setup_ui();
+                this.bind_events();
+                this.setup_menu_item();
+            }
+        });
     },
 
     setup_ui: function() {
         // Create button
         const btn = document.createElement("button");
         btn.id = "ask-alexa-btn";
-        btn.innerHTML = '<img src="/assets/ai_assistant_app/images/alexa_icon.png" alt="Ask Alexa">';
-        btn.title = "Ask Alexa";
+        btn.innerHTML = `<img src="${this.chatbot_icon}" alt="${this.chatbot_label}">`;
+        btn.title = this.chatbot_label;
         document.body.appendChild(btn);
 
         // Create panel
         const panel = document.createElement("div");
         panel.id = "ask-alexa-panel";
+        let footer_html = "";
+        if (this.enable_erpnext_context) {
+            footer_html = `
+            <div class="panel-footer" style="padding: 0 10px 10px 10px; font-size: 12px; display: flex; align-items: center; justify-content: flex-end; color: #6b7280; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; background: #fff;">
+                <label style="margin: 0; display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="ask-alexa-enable-context" checked style="margin-right: 5px; cursor: pointer;">
+                    Enable ERPNext Context
+                </label>
+            </div>
+            `;
+        }
+
         panel.innerHTML = `
             <div class="panel-header">
                 <div class="panel-header-title">
-                    <img src="/assets/ai_assistant_app/images/alexa_icon.png" class="panel-header-icon" alt="Alexa">
-                    <span>Ask Alexa</span>
+                    <img src="${this.chatbot_icon}" class="panel-header-icon" alt="${this.chatbot_label}">
+                    <span>${this.chatbot_label}</span>
                 </div>
                 <span class="close-btn" id="ask-alexa-close">&times;</span>
             </div>
@@ -33,12 +59,7 @@ ai_assistant_app.Assistant = {
                 <input type="text" id="ask-alexa-input" placeholder="Ask anything..." autocomplete="off">
                 <button id="ask-alexa-send">&#10148;</button>
             </div>
-            <div class="panel-footer" style="padding: 0 10px 10px 10px; font-size: 12px; display: flex; align-items: center; justify-content: flex-end; color: #6b7280; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; background: #fff;">
-                <label style="margin: 0; display: flex; align-items: center; cursor: pointer;">
-                    <input type="checkbox" id="ask-alexa-use-context" checked style="margin-right: 5px; cursor: pointer;">
-                    Use ERPNext Context
-                </label>
-            </div>
+            ${footer_html}
         `;
         document.body.appendChild(panel);
 
@@ -98,8 +119,7 @@ ai_assistant_app.Assistant = {
             args: {
                 message: text,
                 context: {
-                    route: frappe.get_route ? frappe.get_route() : null,
-                    use_erpnext_context: document.getElementById("ask-alexa-use-context") ? document.getElementById("ask-alexa-use-context").checked : true
+                    route: frappe.get_route ? frappe.get_route() : null
                 }
             },
             callback: (r) => {
@@ -134,7 +154,7 @@ ai_assistant_app.Assistant = {
         if ($('#toolbar-help').length) {
             $('#toolbar-help').append(`
                 <button class="btn-reset dropdown-item" id="ask-alexa-menu-item">
-                    Ask Alexa
+                    ${this.chatbot_label}
                 </button>
             `);
             $('#ask-alexa-menu-item').on('click', () => {

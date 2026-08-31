@@ -5,22 +5,47 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "ai_assistant_provider"
+  "ai_assistant_provider",
+  "chatbot_label",
+  "chatbot_icon",
+  "enable_erpnext_context"
  ],
  "fields": [
   {
    "fieldname": "ai_assistant_provider",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "AI Assistant Provider",
    "link_filters": "[[\"AI Assistant Provider\",\"status\",\"=\",\"Active\"]]",
-   "options": "AI Assistant Provider"
+   "options": "AI Assistant Provider",
+   "reqd": 1
+  },
+  {
+   "fieldname": "chatbot_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Chatbot Label",
+   "reqd": 1
+  },
+  {
+   "fieldname": "chatbot_icon",
+   "fieldtype": "Attach Image",
+   "label": "Chatbot Icon",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "If unchecked, the AI will not have access to ERPNext data and the toggle in the chat will be hidden.",
+   "fieldname": "enable_erpnext_context",
+   "fieldtype": "Check",
+   "label": "Enable ERPNext Context"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-31 11:31:27.778055",
+ "modified": "2026-08-31 17:09:29.851536",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "AI Assistant App Setting",

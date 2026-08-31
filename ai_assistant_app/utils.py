@@ -5,6 +5,9 @@ class ERPNextTools:
     def __init__(self):
         self.captured_data = []
         
+    def is_erpnext_context_enabled(self):
+        return frappe.db.get_single_value("AI Assistant App Setting", "enable_erpnext_context") == 1
+        
     def get_query_tool(self, provider_doc=None):
         def query_erpnext_data(doctype: str, fields: list, filters: str) -> dict:
             """Query ERPNext data using DocType, filters and fields. Use this when the user asks for data like overdue invoices, user lists, etc."""
