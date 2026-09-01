@@ -17,15 +17,70 @@ class ERPNextTools:
     def get_query_tool_schema(self):
         return {
             "name": "query_erpnext_data",
-            "description": "Query ERPNext data using DocType, filters and fields. Use this when the user asks for data like overdue invoices, user lists, etc.",
+            "description": (
+                "Query ERPNext/Frappe data from any DocType. "
+                "Use this tool when the user asks to fetch, search, filter, "
+                "count, or list ERPNext records. "
+                "Examples include customers, suppliers, sales invoices, "
+                "purchase invoices, users, items, stock entries, and overdue invoices."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "doctype": { "type": "string" },
-                    "fields": { "type": "array", "items": { "type": "string" } },
-                    "filters": { "type": "string", "description": "JSON string representing a dictionary, even if empty, like '{}'" }
+                    "doctype": {
+                        "type": "string",
+                        "description": (
+                            "The ERPNext/Frappe DocType to query. "
+                            "Examples: Customer, Supplier, User, Sales Invoice, "
+                            "Purchase Invoice, Item, Stock Entry."
+                        )
+                    },
+
+                    "fields": {
+                        "type": "array",
+                        "description": (
+                            "Fields to return from the DocType. "
+                            "Use standard field names or valid SQL expressions supported "
+                            "by the implementation."
+                        ),
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1
+                    },
+
+                    "filters": {
+                        "type": "object",
+                        "description": (
+                            "Filters to apply to the ERPNext query. "
+                            "Use an empty object {} when no filters are required. "
+                            "Frappe filter syntax can use operators such as =, !=, >, <, "
+                            ">=, <=, like, in, between, is."
+                        ),
+                        "additionalProperties": True
+                    },
+
+                    "order_by": {
+                        "type": "string",
+                        "description": (
+                            "Optional sorting expression, for example "
+                            "'creation desc' or 'posting_date asc'."
+                        )
+                    },
+
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of records to return.",
+                        "minimum": 1,
+                        "maximum": 500
+                    }
                 },
-                "required": ["doctype", "fields", "filters"]
+                "required": [
+                    "doctype",
+                    "fields",
+                    "filters"
+                ],
+                "additionalProperties": False
             }
         }
         
