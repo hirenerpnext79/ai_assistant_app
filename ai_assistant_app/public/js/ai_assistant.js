@@ -108,16 +108,27 @@ ai_assistant_app.Assistant = {
     },
 
     send_message: function() {
+        if (this.is_processing) return;
+        
         const text = this.input.value.trim();
         if (!text) return;
 
         this.add_message(text, "user");
         this.input.value = "";
         
+        this.is_processing = true;
+        this.input.disabled = true;
+        const send_btn = document.getElementById("ask-alexa-send");
+        if (send_btn) send_btn.disabled = true;
+        
+        const enable_context_checkbox = document.getElementById("ask-alexa-enable-context");
+        const enable_context = enable_context_checkbox ? enable_context_checkbox.checked : (this.enable_erpnext_context ? true : false);
+
         frappe.call({
             method: "ai_assistant_app.api.ai_handler.ask_alexa",
             args: {
                 message: text,
+                enable_context: enable_context ? 1 : 0,
                 context: {
                     route: frappe.get_route ? frappe.get_route() : null
                 }
@@ -126,6 +137,12 @@ ai_assistant_app.Assistant = {
                 if (r.message) {
                     this.add_message(r.message, "alexa");
                 }
+            },
+            always: () => {
+                this.is_processing = false;
+                this.input.disabled = false;
+                if (send_btn) send_btn.disabled = false;
+                this.input.focus();
             }
         });
     },

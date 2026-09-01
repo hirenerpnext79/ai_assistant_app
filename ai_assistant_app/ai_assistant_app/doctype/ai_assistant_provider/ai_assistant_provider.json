@@ -12,6 +12,7 @@
   "api_key",
   "base_url",
   "model",
+  "max_tokens",
   "is_default",
   "status",
   "system_info_tab",
@@ -86,6 +87,13 @@
    "fieldname": "system_info_tab",
    "fieldtype": "Tab Break",
    "label": "System Info"
+  },
+  {
+   "fieldname": "max_tokens",
+   "fieldtype": "Int",
+   "label": "Max Tokens",
+   "default": "2048",
+   "description": "Maximum tokens for the AI generation."
   }
  ],
  "grid_page_length": 50,

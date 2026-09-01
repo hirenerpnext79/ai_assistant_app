@@ -2,31 +2,9 @@ import frappe
 import json
 from google import genai
 from google.genai import types
+from ai_assistant_app.ai_services.base import BaseAIService
 
-class GeminiService:
-    def __init__(self, provider_doc):
-        self.api_key = (provider_doc.get_password("api_key") or "").strip()
-        self.model = (provider_doc.model or "gemini-1.5-flash").strip()
-        self.base_url = (provider_doc.base_url or "https://generativelanguage.googleapis.com/v1beta").strip()
-        self.provider_doc = provider_doc
-
-    def log_interaction(self, user_query, ai_response, response_data=None, api_response=None, usage_token=0, usage_details=None):
-        try:
-            doc = frappe.get_doc({
-                "doctype": "Alexa Log",
-                "user": frappe.session.user,
-                "user_query": user_query,
-                "ai_response": ai_response,
-                "response_data": json.dumps(response_data) if response_data else None,
-                "ai_api_response": api_response,
-                "usage_token": usage_token,
-                "usage_details": usage_details
-            })
-            doc.insert(ignore_permissions=True)
-            frappe.db.commit()
-        except Exception as e:
-            frappe.log_error(title="Alexa Log Error", message=str(e))
-
+class GeminiService(BaseAIService):
     def generate(self, text, prompt):
         client = genai.Client(api_key=self.api_key)
         system_instruction = "You are a helpful assistant. Always return JSON. The JSON should contain title, summary, hashtags (array of strings), and keywords (array of strings)."
@@ -44,18 +22,29 @@ class GeminiService:
         )
         return response.text, {}
 
-    def ask_alexa(self, message):
+    def generate_response(self, message, enable_context=None):
         client = genai.Client(api_key=self.api_key)
         
         from ai_assistant_app.utils import ERPNextTools
         tools_manager = ERPNextTools()
-        query_erpnext_data = tools_manager.get_query_tool(self.provider_doc)
+        tools_manager.set_provider(self.provider_doc)
 
-        if tools_manager.is_erpnext_context_enabled():
+        tools = []
+        if tools_manager.is_erpnext_context_enabled(enable_context):
             system_instruction = tools_manager.get_system_prompt(self.provider_doc)
+            
+            schema_dict = tools_manager.get_query_tool_schema()
+            func_decl = types.FunctionDeclaration(
+                name=schema_dict["name"],
+                description=schema_dict["description"],
+                parameters=schema_dict["parameters"]
+            )
+            tool = types.Tool(function_declarations=[func_decl])
+            tools = [tool]
+            
             config = types.GenerateContentConfig(
                 system_instruction=system_instruction,
-                tools=[query_erpnext_data],
+                tools=tools,
                 temperature=0.7
             )
         else:
@@ -68,6 +57,23 @@ class GeminiService:
             chat = client.chats.create(model=self.model, config=config)
             response = chat.send_message(message)
             response_text = response.text
+            
+            if response.function_calls:
+                for func_call in response.function_calls:
+                    if func_call.name == "query_erpnext_data":
+                        args = func_call.args
+                        tool_result = tools_manager.query_erpnext_data(
+                            doctype=args.get("doctype"),
+                            fields=args.get("fields"),
+                            filters=args.get("filters")
+                        )
+                        response = chat.send_message(
+                            types.Part.from_function_response(
+                                name="query_erpnext_data",
+                                response=tool_result
+                            )
+                        )
+                        response_text = response.text
             
             usage_metadata = response.usage_metadata
             total_tokens = usage_metadata.total_token_count if usage_metadata else 0
