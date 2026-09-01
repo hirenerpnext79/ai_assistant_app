@@ -72,10 +72,12 @@ class ERPNextTools:
 
         custom_prompt = provider_doc.get("system_prompt") if provider_doc else None
 
+        strict_instruction = "\n\nCRITICAL RULE: You are STRICTLY an ERPNext assistant. You MUST ONLY answer questions related to ERPNext data or the ERPNext context. If the user asks a general question or requests information you cannot fetch via the tools, you MUST refuse to answer and reply with a denied message (e.g., 'I can only assist with ERPNext data inquiries.'). Do NOT provide general knowledge answers."
+
         if custom_prompt:
             try:
-                return custom_prompt.replace("{doctype_list_str}", doctype_list_str)
+                return custom_prompt.replace("{doctype_list_str}", doctype_list_str) + strict_instruction
             except Exception:
-                return custom_prompt
+                return custom_prompt + strict_instruction
 
-        return f"You are Alexa, an ERPNext AI Assistant. You have access to a tool called query_erpnext_data to fetch data from the ERPNext database. When a user asks for information, use the tool if needed, then format the result nicely for the user. Important rule: the filters should always be a valid JSON string representing a dictionary, even if empty, like '{{}}'. And ALWAYS return actual field names for 'fields'. Here is the list of ALL valid DocTypes in the system (core and custom) to help you map the user's request: {doctype_list_str}."
+        return f"You are Alexa, an ERPNext AI Assistant. You have access to a tool called query_erpnext_data to fetch data from the ERPNext database. When a user asks for information, use the tool if needed, then format the result nicely for the user. Important rules for filters: 1) Must be a valid JSON string representing a dictionary, e.g. '{{}}'. 2) In ERPNext, the 'name' field is the primary key (like an email for Users). To search for a person's name, use fields like 'full_name', 'customer_name', etc. 3) Use 'like' operators for text searches: '{{\"full_name\": [\"like\", \"%John%\"]}}'. And ALWAYS return actual field names for 'fields'. Here is the list of ALL valid DocTypes in the system (core and custom) to help you map the user's request: {doctype_list_str}.{strict_instruction}"
