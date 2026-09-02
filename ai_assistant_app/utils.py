@@ -85,14 +85,18 @@ class ERPNextTools:
         }
         
     def query_erpnext_data(self, doctype: str, fields: list, filters: str) -> dict:
-        allowed_doctypes = []
-        if self.provider_doc and self.provider_doc.get("allowed_doctypes"):
-            allowed_doctypes = [d.document_type for d in self.provider_doc.get("allowed_doctypes")]
+        allowed_doctypes = {d.document_type for d in self.provider_doc.allowed_doctypes} if self.provider_doc and self.provider_doc.allowed_doctypes else set()
             
         if not allowed_doctypes or doctype not in allowed_doctypes:
             error_msg = f"Access Denied: The AI is not permitted to query the '{doctype}' DocType. Please tell the user to add it to the Allowed DocTypes table."
             self.captured_data.append({"doctype": doctype, "error": error_msg})
             return {"error": error_msg}
+            
+        from ai_assistant_app.api.ai_handler import check_doctype_permission
+        is_allowed, msg = check_doctype_permission(self.provider_doc, doctype)
+        if not is_allowed:
+            self.captured_data.append({"doctype": doctype, "error": msg})
+            return {"error": msg}
             
         try:
             parsed_filters = json.loads(filters) if filters else {}
@@ -100,14 +104,9 @@ class ERPNextTools:
             parsed_filters = {}
         
         try:
-            is_single = frappe.get_meta(doctype).issingle
-            if is_single:
-                doc = frappe.get_single(doctype)
-                doc_dict = doc.as_dict()
-                if fields and fields != ["*"]:
-                    data = [{f: doc_dict.get(f) for f in fields}]
-                else:
-                    data = [doc_dict]
+            if frappe.get_meta(doctype).issingle:
+                doc_dict = frappe.get_single(doctype).as_dict()
+                data = [{f: doc_dict.get(f) for f in fields}] if fields and fields != ["*"] else [doc_dict]
             else:
                 data = frappe.get_all(doctype, filters=parsed_filters, fields=fields, limit=50)
                 
@@ -119,14 +118,12 @@ class ERPNextTools:
             return {"error": str(e)}
 
     def get_system_prompt(self, provider_doc=None):
-        if provider_doc and provider_doc.get("allowed_doctypes"):
-            doctype_list = [d.document_type for d in provider_doc.get("allowed_doctypes")]
-            doctype_list_str = ", ".join(doctype_list)
+        if provider_doc and provider_doc.allowed_doctypes:
+            doctype_list_str = ", ".join(d.document_type for d in provider_doc.allowed_doctypes)
         else:
             doctype_list_str = "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
 
-        custom_prompt = provider_doc.get("system_prompt") if provider_doc else None
-
+        custom_prompt = provider_doc.system_prompt if provider_doc else None
         strict_instruction = "\n\nCRITICAL RULE: You are STRICTLY an ERPNext assistant. You MUST ONLY answer questions related to ERPNext data or the ERPNext context. If the user asks a general question or requests information you cannot fetch via the tools, you MUST refuse to answer and reply with a denied message (e.g., 'I can only assist with ERPNext data inquiries.'). Do NOT provide general knowledge answers."
 
         if custom_prompt:

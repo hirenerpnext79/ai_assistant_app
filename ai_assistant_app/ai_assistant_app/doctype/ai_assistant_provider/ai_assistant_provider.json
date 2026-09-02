@@ -6,19 +6,19 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": [
-  "provider_name",
-  "provider",
-  "api_key",
-  "base_url",
-  "model",
-  "max_tokens",
-  "is_default",
-  "status",
-  "system_info_tab",
-  "system_prompt",
-  "allowed_doctypes"
- ],
+  "field_order": [
+   "provider_name",
+   "provider",
+   "api_key",
+   "base_url",
+   "model",
+   "max_tokens",
+   "is_default",
+   "status",
+   "system_info_tab",
+   "system_prompt",
+   "allowed_doctypes"
+  ],
  "fields": [
   {
    "fieldname": "provider_name",

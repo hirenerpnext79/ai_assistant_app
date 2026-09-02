@@ -1,38 +1,30 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-08-31 12:45:58.808804",
+ "creation": "2026-09-02 12:30:17.776502",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "document_type",
-  "permission_name"
+  "user"
  ],
  "fields": [
   {
-   "fieldname": "document_type",
+   "fieldname": "user",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Document Type",
-   "options": "DocType",
-   "reqd": 1
-  },
-  {
-   "fieldname": "permission_name",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Permission Name",
-   "options": "AI Assistant Permission"
+   "label": "User",
+   "options": "User"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-02 14:00:40.136659",
+ "modified": "2026-09-02 12:38:50.907785",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
- "name": "AI Allowed DocType",
+ "name": "AI Assistant User",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",
