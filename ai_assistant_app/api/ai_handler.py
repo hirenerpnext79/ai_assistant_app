@@ -2,10 +2,12 @@ import frappe
 from frappe import _
 from ai_assistant_app.ai_services.gemini import GeminiService
 from ai_assistant_app.ai_services.openrouter import OpenRouterService
+from ai_assistant_app.ai_services.groq import GroqService
 
 PROVIDER_CLASSES = {
     "Gemini": GeminiService,
-    "OpenRouter": OpenRouterService
+    "OpenRouter": OpenRouterService,
+    "Groq": GroqService
 }
 
 @frappe.whitelist()
@@ -110,3 +112,4 @@ def check_doctype_permission(provider_doc, doctype):
         return True, ""
         
     return False, _("You do not have the required role or user permission to use AI Assistant for {0}").format(doctype)
+
