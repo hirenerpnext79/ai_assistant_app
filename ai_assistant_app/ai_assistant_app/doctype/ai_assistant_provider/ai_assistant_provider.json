@@ -6,19 +6,19 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
-  "field_order": [
-   "provider_name",
-   "provider",
-   "api_key",
-   "base_url",
-   "model",
-   "max_tokens",
-   "is_default",
-   "status",
-   "system_info_tab",
-   "system_prompt",
-   "allowed_doctypes"
-  ],
+ "field_order": [
+  "provider_name",
+  "provider",
+  "api_key",
+  "base_url",
+  "model",
+  "max_tokens",
+  "is_default",
+  "status",
+  "system_info_tab",
+  "system_prompt",
+  "allowed_doctypes"
+ ],
  "fields": [
   {
    "fieldname": "provider_name",
@@ -33,7 +33,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Provider",
-   "options": "OpenAI\nGemini\nOllama\nGroq\nOpenRouter",
+   "options": "Gemini\nGroq\nOpenRouter",
    "reqd": 1
   },
   {
@@ -89,17 +89,17 @@
    "label": "System Info"
   },
   {
+   "default": "2048",
+   "description": "Maximum tokens for the AI generation.",
    "fieldname": "max_tokens",
    "fieldtype": "Int",
-   "label": "Max Tokens",
-   "default": "2048",
-   "description": "Maximum tokens for the AI generation."
+   "label": "Max Tokens"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-31 12:56:33.021003",
+ "modified": "2026-09-07 11:04:12.058949",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "AI Assistant Provider",

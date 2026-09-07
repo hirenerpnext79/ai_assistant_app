@@ -112,6 +112,9 @@ class OpenRouterService(BaseAIService):
         if response.status_code == 200:
             return
             
+        if response.status_code == 429:
+            raise Exception("Rate limit reached. Please wait and try again.")
+            
         try:
             error_data = response.json()
             error_message = error_data.get('error', {}).get('message', response.text)
@@ -119,3 +122,4 @@ class OpenRouterService(BaseAIService):
             error_message = response.text
             
         frappe.throw(frappe._(f"OpenRouter API Error: {error_message} (Status Code: {response.status_code})"))
+

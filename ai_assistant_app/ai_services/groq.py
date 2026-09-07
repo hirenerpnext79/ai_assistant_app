@@ -6,6 +6,10 @@ class GroqService:
         self.api_key = provider_doc.get_password("api_key")
         self.model = provider_doc.model or "llama3-8b-8192"
         self.base_url = provider_doc.base_url or "https://api.groq.com/openai/v1/chat/completions"
+        try:
+            self.max_tokens = provider_doc.max_tokens
+        except Exception:
+            self.max_tokens = None
 
     def generate(self, text, prompt):
         headers = {
@@ -24,6 +28,8 @@ class GroqService:
             ],
             "response_format": {"type": "json_object"}
         }
+        if self.max_tokens:
+            data["max_tokens"] = int(self.max_tokens)
         response = requests.post(self.base_url, headers=headers, json=data)
         if response.status_code != 200:
             frappe.throw(f"Groq API Error: {response.text}")

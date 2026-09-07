@@ -57,7 +57,7 @@ class ERPNextTools:
                             "Frappe filter syntax can use operators such as =, !=, >, <, "
                             ">=, <=, like, in, between, is."
                         ),
-                        "additionalProperties": True
+                        # "additionalProperties": True
                     },
 
                     "order_by": {
@@ -80,11 +80,11 @@ class ERPNextTools:
                     "fields",
                     "filters"
                 ],
-                "additionalProperties": False
+                # "additionalProperties": False
             }
         }
         
-    def query_erpnext_data(self, doctype: str, fields: list, filters: str) -> dict:
+    def query_erpnext_data(self, doctype: str, fields: list, filters: str, limit: int = 50) -> dict:
         allowed_doctypes = {d.document_type for d in self.provider_doc.allowed_doctypes} if self.provider_doc and self.provider_doc.allowed_doctypes else set()
             
         if not allowed_doctypes or doctype not in allowed_doctypes:
@@ -108,7 +108,7 @@ class ERPNextTools:
                 doc_dict = frappe.get_single(doctype).as_dict()
                 data = [{f: doc_dict.get(f) for f in fields}] if fields and fields != ["*"] else [doc_dict]
             else:
-                data = frappe.get_all(doctype, filters=parsed_filters, fields=fields, limit=50)
+                data = frappe.get_all(doctype, filters=parsed_filters, fields=fields, limit=limit)
                 
             data = json.loads(frappe.as_json(data))
             self.captured_data.append({"doctype": doctype, "data": data})
@@ -133,3 +133,6 @@ class ERPNextTools:
                 return custom_prompt + strict_instruction
 
         return f"You are Alexa, an ERPNext AI Assistant. You have access to a tool called query_erpnext_data to fetch data from the ERPNext database. When a user asks for information, use the tool if needed, then format the result nicely for the user. Important rules for filters: 1) Must be a valid JSON string representing a dictionary, e.g. '{{}}'. 2) In ERPNext, the 'name' field is the primary key (like an email for Users). To search for a person's name, use fields like 'full_name', 'customer_name', etc. 3) Use 'like' operators for text searches: '{{\"full_name\": [\"like\", \"%John%\"]}}'. And ALWAYS return actual field names for 'fields'. Here is the list of ALL valid DocTypes in the system (core and custom) to help you map the user's request: {doctype_list_str}.{strict_instruction}"
+
+
+
