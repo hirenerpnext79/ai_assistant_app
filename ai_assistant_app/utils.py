@@ -1,5 +1,8 @@
-﻿import frappe
+import frappe
 import json
+
+SETTINGS_DOCTYPE = "AI Assistant App Setting"
+
 
 class ERPNextTools:
     def __init__(self):
@@ -9,76 +12,61 @@ class ERPNextTools:
     def is_erpnext_context_enabled(self, enable_context_override=None):
         if enable_context_override is not None:
             return int(enable_context_override) == 1
-        return frappe.db.get_single_value("AI Assistant App Setting", "enable_erpnext_context") == 1
+        return frappe.db.get_single_value(SETTINGS_DOCTYPE, "enable_erpnext_context") == 1
 
     def set_provider(self, provider_doc):
         self.provider_doc = provider_doc
 
     def get_query_tool_schema(self):
-        schema_str = frappe.db.get_single_value("AI Assistant App Setting", "query_tool_schema")
-        if schema_str:
-            try:
-                return json.loads(schema_str)
-            except Exception:
-                pass
-        return {}
+        schema_str = frappe.db.get_single_value(SETTINGS_DOCTYPE, "query_tool_schema")
+        if not schema_str:
+            return {}
+        try:
+            return json.loads(schema_str)
+        except json.JSONDecodeError:
+            frappe.log_error(title="Invalid Tool Schema JSON", message=schema_str)
+            return {}
 
-    def query_erpnext_data(self, doctype: str, fields: list, filters, operation: str = "list", order_by: str = None, limit: int = None, sum_field: str = None, **kwargs) -> dict:
+    def query_erpnext_data(self, doctype: str, fields: list, filters,
+                           operation: str = "list", order_by: str = None,
+                           limit: int = None, sum_field: str = None) -> dict:
         try:
             self._check_doctype_access(doctype)
             parsed_filters = self._parse_filters(filters)
 
             if frappe.get_meta(doctype).issingle:
                 data = self._query_single_doctype(doctype, fields)
+            elif operation == "count":
+                count = frappe.db.count(doctype, filters=parsed_filters)
+                data = [{"count": count}]
+            elif operation == "sum" and sum_field:
+                data = self._query_sum(doctype, parsed_filters, sum_field)
             else:
-                if operation == "count":
-                    count = frappe.db.count(doctype, filters=parsed_filters)
-                    data = [{"count": count}]
-                elif operation == "sum" and sum_field:
-                    clean_field = "".join(c for c in sum_field if c.isalnum() or c == '_')
-                    res = frappe.get_all(doctype, filters=parsed_filters, fields=[f"sum(`{clean_field}`) as total"])
-                    total = res[0].total if res else 0
-                    data = [{"sum": total}]
-                else:
-                    query_kwargs = {"filters": parsed_filters, "fields": fields}
-                    if limit is not None:
-                        query_kwargs["limit"] = limit
-                    else:
-                        query_kwargs["limit"] = 0
-                    if order_by:
-                        query_kwargs["order_by"] = order_by
-                    data = frappe.get_all(doctype, **query_kwargs)
+                data = self._query_list(doctype, parsed_filters, fields, order_by, limit)
 
             data = json.loads(frappe.as_json(data))
-            print({"doctype": doctype, "data": data})
             self.captured_data.append({"doctype": doctype, "data": data})
             return {"data": data}
 
-        except PermissionError as e:
+        except Exception as e:
             error_msg = str(e)
             self.captured_data.append({"doctype": doctype, "error": error_msg})
             return {"error": error_msg}
-        except Exception as e:
-            self.captured_data.append({"doctype": doctype, "error": str(e)})
-            return {"error": str(e)}
 
     def get_system_prompt(self, provider_doc=None):
         doctype_list_str = self._get_doctype_list_str(provider_doc)
         custom_prompt = provider_doc.system_prompt if provider_doc else ""
-
-        try:
-            return custom_prompt.replace("{doctype_list_str}", doctype_list_str)
-        except Exception:
-            return custom_prompt
+        return custom_prompt.replace("{doctype_list_str}", doctype_list_str)
 
     def _check_doctype_access(self, doctype: str):
-        allowed_doctypes = (
-            {d.document_type for d in self.provider_doc.allowed_doctypes}
-            if self.provider_doc and self.provider_doc.allowed_doctypes
-            else set()
-        )
+        if not self.provider_doc or not self.provider_doc.allowed_doctypes:
+            raise PermissionError(
+                f"Access Denied: The AI is not permitted to query the '{doctype}' DocType. "
+                "Please add it to the Allowed DocTypes table."
+            )
 
-        if not allowed_doctypes or doctype not in allowed_doctypes:
+        allowed_doctypes = {d.document_type for d in self.provider_doc.allowed_doctypes}
+        if doctype not in allowed_doctypes:
             raise PermissionError(
                 f"Access Denied: The AI is not permitted to query the '{doctype}' DocType. "
                 "Please add it to the Allowed DocTypes table."
@@ -95,7 +83,7 @@ class ERPNextTools:
         if isinstance(filters, str) and filters:
             try:
                 return json.loads(filters)
-            except Exception:
+            except json.JSONDecodeError:
                 return {}
         return {}
 
@@ -105,6 +93,25 @@ class ERPNextTools:
             return [{f: doc_dict.get(f) for f in fields}]
         return [doc_dict]
 
+    def _query_sum(self, doctype: str, filters, sum_field: str) -> list:
+        clean_field = "".join(c for c in sum_field if c.isalnum() or c == '_')
+        result = frappe.get_all(
+            doctype, filters=filters, fields=[f"sum(`{clean_field}`) as total"]
+        )
+        total = result[0].total if result else 0
+        return [{"sum": total}]
+
+    def _query_list(self, doctype: str, filters, fields: list,
+                    order_by: str = None, limit: int = None) -> list:
+        query_kwargs = {
+            "filters": filters,
+            "fields": fields,
+            "limit": limit if limit is not None else 0,
+        }
+        if order_by:
+            query_kwargs["order_by"] = order_by
+        return frappe.get_all(doctype, **query_kwargs)
+
     def _get_doctype_list_str(self, provider_doc) -> str:
         if provider_doc and provider_doc.allowed_doctypes:
             return ", ".join(d.document_type for d in provider_doc.allowed_doctypes)
@@ -112,6 +119,3 @@ class ERPNextTools:
             "None (You currently do not have access to any DocTypes. "
             "If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
         )
-
-
-

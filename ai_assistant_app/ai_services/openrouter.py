@@ -66,7 +66,6 @@ class OpenRouterService(BaseAIService):
                 
             choice = result_data['choices'][0]
             message_obj = choice.get('message', {})
-            print(message_obj)
             usage = result_data.get('usage', {})
             total_usage['total_tokens'] = total_usage.get('total_tokens', 0) + usage.get('total_tokens', 0)
             total_usage['prompt_tokens'] = total_usage.get('prompt_tokens', 0) + usage.get('prompt_tokens', 0)
@@ -81,12 +80,15 @@ class OpenRouterService(BaseAIService):
                         args = json.loads(tool_call['function']['arguments'])
                     except Exception:
                         args = {}
-                    print(function_name)
                     if function_name == "query_erpnext_data":
                         tool_result = tools_manager.query_erpnext_data(
                             doctype=args.get('doctype', ''),
                             fields=args.get('fields', []),
-                            filters=args.get('filters', '{}')
+                            filters=args.get('filters', '{}'),
+                            operation=args.get('operation', 'list'),
+                            order_by=args.get('order_by'),
+                            limit=args.get('limit'),
+                            sum_field=args.get('sum_field'),
                         )
                     else:
                         tool_result = {"error": f"Unknown function {function_name}"}

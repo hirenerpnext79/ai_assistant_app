@@ -119,7 +119,11 @@ class GroqService(BaseAIService):
                         tool_result = tools_manager.query_erpnext_data(
                             doctype=args.get('doctype', ''),
                             fields=args.get('fields', []),
-                            filters=args.get('filters', '{}')
+                            filters=args.get('filters', '{}'),
+                            operation=args.get('operation', 'list'),
+                            order_by=args.get('order_by'),
+                            limit=args.get('limit'),
+                            sum_field=args.get('sum_field'),
                         )
                     else:
                         tool_result = {"error": f"Unknown function {function_name}"}

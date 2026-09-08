@@ -76,8 +76,8 @@ ai_assistant_app.Assistant = {
             callback: (r) => {
                 if (r.message && r.message.length > 0) {
                     r.message.forEach(log => {
-                        this.add_message_to_dom(log.user_query, "user", false);
-                        this.add_message_to_dom(log.ai_response, "alexa", false);
+                        if (log.user_query) this.add_message_to_dom(log.user_query, "user", false);
+                        if (log.ai_response) this.add_message_to_dom(log.ai_response, "alexa", false);
                     });
                 } else {
                     this.add_message_to_dom("Hello! How can I help you today?", "alexa", false);
@@ -152,6 +152,7 @@ ai_assistant_app.Assistant = {
     },
 
     add_message_to_dom: function(text, sender, save) {
+        if (!text) text = "";
         const msg = document.createElement("div");
         msg.className = `chat-message ${sender}`;
         

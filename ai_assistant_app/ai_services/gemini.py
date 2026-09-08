@@ -44,10 +44,13 @@ class GeminiService(BaseAIService):
             if func_call["name"] == "query_erpnext_data":
                 args = func_call.get("args", {})
                 tool_result = tools_manager.query_erpnext_data(
-                    doctype=args.get("doctype"),
-                    fields=args.get("fields"),
-                    filters=args.get("filters"),
-                    limit=args.get("limit", 50)
+                    doctype=args.get("doctype", ""),
+                    fields=args.get("fields", []),
+                    filters=args.get("filters", "{}"),
+                    operation=args.get("operation", "list"),
+                    order_by=args.get("order_by"),
+                    limit=args.get("limit"),
+                    sum_field=args.get("sum_field"),
                 )
                 function_responses.append({
                     "functionResponse": {
