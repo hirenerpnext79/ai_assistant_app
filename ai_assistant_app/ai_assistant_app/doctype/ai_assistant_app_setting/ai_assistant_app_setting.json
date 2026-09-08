@@ -8,7 +8,9 @@
   "ai_assistant_provider",
   "chatbot_label",
   "chatbot_icon",
-  "enable_erpnext_context"
+  "enable_erpnext_context",
+  "query_tool_schema_tab",
+  "query_tool_schema"
  ],
  "fields": [
   {
@@ -39,13 +41,25 @@
    "fieldname": "enable_erpnext_context",
    "fieldtype": "Check",
    "label": "Enable ERPNext Context"
+  },
+  {
+   "default": "{\n  \"name\": \"query_erpnext_data\",\n  \"description\": \"Query ERPNext/Frappe records from any available DocType. Use this tool whenever the user asks to find, search, list, show, retrieve, count, total, sum, filter, sort, compare, or summarize ERPNext data. The database is the source of truth.\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"operation\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"list\",\n          \"count\",\n          \"sum\"\n        ],\n        \"description\": \"list retrieves matching records, count returns the exact number of all matching records, and sum returns the exact total of a numeric field across all matching records.\"\n      },\n      \"doctype\": {\n        \"type\": \"string\",\n        \"description\": \"Exact ERPNext/Frappe DocType name. Must exist in the available DocType list. Never invent a DocType.\"\n      },\n      \"fields\": {\n        \"type\": \"array\",\n        \"description\": \"Actual fieldnames from the selected DocType. Use only fields that exist. For count and sum, include the minimum fields necessary to perform or describe the operation.\",\n        \"items\": {\n          \"type\": \"string\"\n        },\n        \"minItems\": 1\n      },\n      \"filters\": {\n        \"type\": \"object\",\n        \"description\": \"JSON object containing ERPNext/Frappe filters. Use {} when no filters are required. Multiple filters are combined with AND logic.\",\n        \"additionalProperties\": true\n      },\n      \"order_by\": {\n        \"type\": \"string\",\n        \"description\": \"Optional sorting expression, for example 'creation desc', 'modified desc', 'posting_date desc', 'grand_total desc', or 'time desc'. Primarily used with list operations.\"\n      },\n      \"limit\": {\n        \"type\": \"integer\",\n        \"description\": \"Maximum number of records returned for a list operation. Do not use limit to restrict count or sum calculations.\",\n        \"minimum\": 1\n      },\n      \"offset\": {\n        \"type\": \"integer\",\n        \"description\": \"Number of matching records to skip for pagination. Use only for list operations. Start at 0.\",\n        \"minimum\": 0\n      },\n      \"sum_field\": {\n        \"type\": \"string\",\n        \"description\": \"Actual numeric ERPNext field to sum when operation is sum. Must exist in the selected DocType.\"\n      }\n    },\n    \"required\": [\n      \"operation\",\n      \"doctype\",\n      \"fields\",\n      \"filters\"\n    ],\n    \"additionalProperties\": false\n  }\n}",
+   "fieldname": "query_tool_schema",
+   "fieldtype": "Code",
+   "label": "Query Tool Schema",
+   "reqd": 1
+  },
+  {
+   "fieldname": "query_tool_schema_tab",
+   "fieldtype": "Tab Break",
+   "label": "Query Tool Schema"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-31 17:09:29.851536",
+ "modified": "2026-09-08 16:38:46.720254",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "AI Assistant App Setting",

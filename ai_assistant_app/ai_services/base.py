@@ -1,4 +1,4 @@
-import frappe
+﻿import frappe
 import json
 
 class BaseAIService:
@@ -12,7 +12,7 @@ class BaseAIService:
         except Exception:
             self.max_tokens = None
 
-    def log_interaction(self, user_query, ai_response, response_data=None, api_response=None, usage_token=0, usage_details=None):
+    def log_interaction(self, user_query, ai_response, response_data=None, api_response=None, usage_token=0, usage_details=None, prompt=None):
         try:
             doc = frappe.get_doc({
                 "doctype": "Alexa Log",
@@ -22,7 +22,8 @@ class BaseAIService:
                 "response_data": json.dumps(response_data) if response_data else None,
                 "ai_api_response": api_response,
                 "usage_token": usage_token,
-                "usage_details": usage_details
+                "usage_details": usage_details,
+                "prompt": prompt
             })
             doc.insert(ignore_permissions=True)
             frappe.db.commit()
@@ -31,4 +32,5 @@ class BaseAIService:
 
     def generate_response(self, message, enable_context=None):
         raise NotImplementedError("This method must be implemented by subclasses.")
+
 

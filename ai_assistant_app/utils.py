@@ -1,101 +1,5 @@
-import frappe
+﻿import frappe
 import json
-
-QUERY_TOOL_SCHEMA = {
-    "name": "query_erpnext_data",
-    "description": (
-        "Query ERPNext/Frappe records from any DocType. "
-        "Use this tool whenever the user asks to fetch, search, list, "
-        "count, summarize, or filter ERPNext data. "
-        "Examples: customers, suppliers, employees, users, items, "
-        "sales invoices, purchase invoices, payments, stock entries, "
-        "attendance, and overdue invoices."
-    ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "doctype": {
-                "type": "string",
-                "description": (
-                    "The ERPNext/Frappe DocType to query. "
-                    "Examples: Customer, Supplier, Employee, User, "
-                    "Sales Invoice, Purchase Invoice, Item, Stock Entry, "
-                    "Employee Checkin."
-                )
-            },
-            "fields": {
-                "type": "array",
-                "description": (
-                    "Fields to return from the DocType. "
-                    "Use valid field names. "
-                    "Include 'name' when record identity is needed."
-                ),
-                "items": {"type": "string"},
-                "minItems": 1
-            },
-            "filters": {
-                "type": "object",
-                "description": (
-                    "Filters to apply to the query. "
-                    "Use {} when no filters are required. "
-                    "Supported examples: "
-                    "{'status': 'Submitted'}, "
-                    "{'posting_date': ['>=', '2026-01-01']}, "
-                    "{'posting_date': ['between', ['2026-01-01', '2026-01-31']]}, "
-                    "{'status': ['in', ['Open', 'Overdue']]}, "
-                    "{'customer_name': ['like', '%ABC%']}, "
-                    "{'outstanding_amount': ['>', 0]}."
-                ),
-                "additionalProperties": True
-            },
-            "order_by": {
-                "type": "string",
-                "description": (
-                    "Optional sorting expression. "
-                    "Examples: 'creation desc', 'posting_date desc', 'name asc'."
-                )
-            },
-            "limit": {
-                "type": "integer",
-                "description": (
-                    "Maximum number of records to return. "
-                    "Use a smaller value when the user asks for a sample or recent records."
-                ),
-                "minimum": 1,
-                "maximum": 500,
-                "default": 100
-            }
-        },
-        "required": ["doctype", "fields", "filters"],
-        "additionalProperties": False
-    }
-}
-
-DEFAULT_SYSTEM_PROMPT_TEMPLATE = (
-    "You are Alexa, an ERPNext AI Assistant with access to a tool called query_erpnext_data "
-    "to fetch data from the ERPNext database. When a user asks for information, use the tool "
-    "if needed, then format the result clearly for the user.\n\n"
-    "Rules for building filters:\n"
-    "1. The filters parameter is a JSON object (dict), NOT a string. Example: {{}}.\n"
-    "2. Use the correct name field per DocType: 'employee_name' for Employee Checkin, "
-    "'full_name' for User, 'customer_name' for Customer.\n"
-    "3. Use 'like' for partial text: {{\"employee_name\": [\"like\", \"%John%\"]}}.\n"
-    "4. Use 'between' for date/time ranges: "
-    "{{\"time\": [\"between\", [\"2026-09-01 00:00:00\", \"2026-09-30 23:59:59\"]]}}.\n"
-    "5. Combine multiple conditions in one filter object.\n"
-    "6. Employee Checkin fields: 'employee' (ID), 'employee_name' (full name), "
-    "'time' (Datetime), 'log_type' (IN/OUT), 'shift'.\n\n"
-    "Available DocTypes: {doctype_list_str}."
-)
-
-STRICT_INSTRUCTION = (
-    "\n\nCRITICAL RULE: You are STRICTLY an ERPNext assistant. You MUST ONLY answer questions "
-    "related to ERPNext data or the ERPNext context. If the user asks a general question or "
-    "requests information you cannot fetch via the tools, you MUST refuse and reply with a "
-    "denied message (e.g., 'I can only assist with ERPNext data inquiries.'). "
-    "Do NOT provide general knowledge answers."
-)
-
 
 class ERPNextTools:
     def __init__(self):
@@ -111,9 +15,15 @@ class ERPNextTools:
         self.provider_doc = provider_doc
 
     def get_query_tool_schema(self):
-        return QUERY_TOOL_SCHEMA
+        schema_str = frappe.db.get_single_value("AI Assistant App Setting", "query_tool_schema")
+        if schema_str:
+            try:
+                return json.loads(schema_str)
+            except Exception:
+                pass
+        return {}
 
-    def query_erpnext_data(self, doctype: str, fields: list, filters, limit: int = 50) -> dict:
+    def query_erpnext_data(self, doctype: str, fields: list, filters, operation: str = "list", order_by: str = None, limit: int = None, sum_field: str = None, **kwargs) -> dict:
         try:
             self._check_doctype_access(doctype)
             parsed_filters = self._parse_filters(filters)
@@ -121,9 +31,26 @@ class ERPNextTools:
             if frappe.get_meta(doctype).issingle:
                 data = self._query_single_doctype(doctype, fields)
             else:
-                data = frappe.get_all(doctype, filters=parsed_filters, fields=fields, limit=limit)
+                if operation == "count":
+                    count = frappe.db.count(doctype, filters=parsed_filters)
+                    data = [{"count": count}]
+                elif operation == "sum" and sum_field:
+                    clean_field = "".join(c for c in sum_field if c.isalnum() or c == '_')
+                    res = frappe.get_all(doctype, filters=parsed_filters, fields=[f"sum(`{clean_field}`) as total"])
+                    total = res[0].total if res else 0
+                    data = [{"sum": total}]
+                else:
+                    query_kwargs = {"filters": parsed_filters, "fields": fields}
+                    if limit is not None:
+                        query_kwargs["limit"] = limit
+                    else:
+                        query_kwargs["limit"] = 0
+                    if order_by:
+                        query_kwargs["order_by"] = order_by
+                    data = frappe.get_all(doctype, **query_kwargs)
 
             data = json.loads(frappe.as_json(data))
+            print({"doctype": doctype, "data": data})
             self.captured_data.append({"doctype": doctype, "data": data})
             return {"data": data}
 
@@ -137,15 +64,12 @@ class ERPNextTools:
 
     def get_system_prompt(self, provider_doc=None):
         doctype_list_str = self._get_doctype_list_str(provider_doc)
-        custom_prompt = provider_doc.system_prompt if provider_doc else None
+        custom_prompt = provider_doc.system_prompt if provider_doc else ""
 
-        if custom_prompt:
-            try:
-                return custom_prompt.replace("{doctype_list_str}", doctype_list_str) + STRICT_INSTRUCTION
-            except Exception:
-                return custom_prompt + STRICT_INSTRUCTION
-
-        return DEFAULT_SYSTEM_PROMPT_TEMPLATE.format(doctype_list_str=doctype_list_str) + STRICT_INSTRUCTION
+        try:
+            return custom_prompt.replace("{doctype_list_str}", doctype_list_str)
+        except Exception:
+            return custom_prompt
 
     def _check_doctype_access(self, doctype: str):
         allowed_doctypes = (
@@ -188,3 +112,6 @@ class ERPNextTools:
             "None (You currently do not have access to any DocTypes. "
             "If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
         )
+
+
+

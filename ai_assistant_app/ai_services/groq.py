@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 import frappe
 import json
 from ai_assistant_app.ai_services.base import BaseAIService
@@ -137,7 +137,9 @@ class GroqService(BaseAIService):
         usage_details = json.dumps(total_usage)
         log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
         
-        self.log_interaction(user_message, final_content, log_data, None, usage_token, usage_details)
+        prompt_log = json.dumps(messages, indent=2)
+        
+        self.log_interaction(user_message, final_content, log_data, None, usage_token, usage_details, prompt=prompt_log)
         
         return final_content
 
@@ -155,4 +157,5 @@ class GroqService(BaseAIService):
             error_message = response.text
             
         frappe.throw(frappe._(f"Groq API Error: {error_message} (Status Code: {response.status_code})"))
+
 

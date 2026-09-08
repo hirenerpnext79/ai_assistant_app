@@ -1,4 +1,4 @@
-import frappe
+﻿import frappe
 import json
 import requests
 from ai_assistant_app.ai_services.base import BaseAIService
@@ -110,13 +110,15 @@ class GeminiService(BaseAIService):
             } if usage_metadata else {}
             
             log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+            prompt_log = json.dumps(payload, indent=2)
             self.log_interaction(
                 user_query=message, 
                 ai_response=response_text, 
                 response_data=log_data, 
                 api_response=json.dumps(data),
                 usage_token=usage_metadata.get("totalTokenCount", 0),
-                usage_details=json.dumps(usage_details) if usage_details else None
+                usage_details=json.dumps(usage_details) if usage_details else None,
+                prompt=prompt_log
             )
             return response_text
             
@@ -124,11 +126,19 @@ class GeminiService(BaseAIService):
             error_msg = f"Error from Google Gemini API: {str(e)}"
             if hasattr(e, 'response') and e.response is not None:
                 error_msg += f"\nResponse: {e.response.text}"
-            self.log_interaction(message, error_msg, None, None, 0, None)
+            prompt_log = json.dumps(payload, indent=2) if 'payload' in locals() else None
+            self.log_interaction(message, error_msg, None, None, 0, None, prompt=prompt_log)
             raise Exception(error_msg)
+            
+        except Exception as e:
+            error_msg = f"Error from Google Gemini API: {str(e)}"
+            prompt_log = json.dumps(payload, indent=2) if 'payload' in locals() else None
+            self.log_interaction(message, error_msg, None, None, 0, None, prompt=prompt_log)
+            raise exception(error_msg)
             
         except Exception as e:
             error_msg = f"Error from Google Gemini API: {str(e)}"
             self.log_interaction(message, error_msg, None, None, 0, None)
             raise e
+
 

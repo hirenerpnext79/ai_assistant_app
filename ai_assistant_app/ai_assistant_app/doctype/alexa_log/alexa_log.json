@@ -8,6 +8,7 @@
  "field_order": [
   "user",
   "user_query",
+  "prompt",
   "ai_response",
   "response_data",
   "ai_api_response",
@@ -54,12 +55,19 @@
    "fieldtype": "Int",
    "label": "Usage Token",
    "read_only": 1
+  },
+  {
+   "fieldname": "prompt",
+   "fieldtype": "Code",
+   "in_list_view": 1,
+   "label": "Prompt",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-07 14:35:37.229493",
+ "modified": "2026-09-08 13:05:33.344948",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "Alexa Log",

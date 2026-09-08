@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 import frappe
 import json
 from ai_assistant_app.ai_services.base import BaseAIService
@@ -66,7 +66,7 @@ class OpenRouterService(BaseAIService):
                 
             choice = result_data['choices'][0]
             message_obj = choice.get('message', {})
-            
+            print(message_obj)
             usage = result_data.get('usage', {})
             total_usage['total_tokens'] = total_usage.get('total_tokens', 0) + usage.get('total_tokens', 0)
             total_usage['prompt_tokens'] = total_usage.get('prompt_tokens', 0) + usage.get('prompt_tokens', 0)
@@ -81,7 +81,7 @@ class OpenRouterService(BaseAIService):
                         args = json.loads(tool_call['function']['arguments'])
                     except Exception:
                         args = {}
-                        
+                    print(function_name)
                     if function_name == "query_erpnext_data":
                         tool_result = tools_manager.query_erpnext_data(
                             doctype=args.get('doctype', ''),
@@ -104,7 +104,9 @@ class OpenRouterService(BaseAIService):
         usage_details = json.dumps(total_usage)
         log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
         
-        self.log_interaction(user_message, final_content, log_data, None, usage_token, usage_details)
+        prompt_log = json.dumps(messages, indent=2)
+        
+        self.log_interaction(user_message, final_content, log_data, None, usage_token, usage_details, prompt=prompt_log)
         
         return final_content
 
@@ -122,4 +124,5 @@ class OpenRouterService(BaseAIService):
             error_message = response.text
             
         frappe.throw(frappe._(f"OpenRouter API Error: {error_message} (Status Code: {response.status_code})"))
+
 
