@@ -56,7 +56,7 @@
    "reqd": 1
   },
   {
-   "default": "You are Alexa, an ERPNext AI Assistant. You have access to a tool called query_erpnext_data to fetch data from the ERPNext database. When a user asks for information, use the tool if needed, then format the result nicely for the user. Important rule: the filters should always be a valid JSON string representing a dictionary, even if empty, like '{{}}'. And ALWAYS return actual field names for 'fields'. Here is the list of ALL valid DocTypes in the system (core and custom) to help you map the user's request: {doctype_list_str}.",
+   "default": "[System Note: The current date and time is {today_date}. Use this as the reference point for any relative date filters (e.g., 'last month', 'today', 'yesterday').]",
    "description": "Optional custom system prompt. Use {doctype_list_str} to inject available doctypes.",
    "fieldname": "system_prompt",
    "fieldtype": "Small Text",
@@ -99,7 +99,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-07 11:04:12.058949",
+ "modified": "2026-09-08 18:18:59.516633",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "AI Assistant Provider",

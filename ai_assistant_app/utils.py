@@ -1,6 +1,6 @@
 import frappe
 import json
-from frappe.utils import now
+from frappe.utils import now, today
 
 SETTINGS_DOCTYPE = "AI Assistant App Setting"
 
@@ -62,8 +62,12 @@ class ERPNextTools:
     def get_system_prompt(self, provider_doc=None):
         doctypes = self._get_doctype_list_str(provider_doc)
         prompt = getattr(provider_doc, "system_prompt", "") if provider_doc else ""
+        today_date = today()
         
-        return f"{prompt.replace('{doctype_list_str}', doctypes)}\n\n[System Note: The current date and time is {now()}. Use this as the reference point for any relative date filters (e.g., 'last month', 'today', 'yesterday').]"
+        prompt = prompt.replace('{doctype_list_str}', doctypes)
+        prompt = prompt.replace('{today_date}', today_date)
+        
+        return prompt
 
     def _check_doctype_access(self, doctype: str):
         allowed = {d.document_type for d in getattr(self.provider_doc, "allowed_doctypes", [])} if self.provider_doc else set()
