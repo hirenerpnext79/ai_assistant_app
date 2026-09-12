@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import frappe
 import json
 from ai_assistant_app.ai_services.base import BaseAIService

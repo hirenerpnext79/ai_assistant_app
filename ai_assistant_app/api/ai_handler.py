@@ -174,6 +174,10 @@ def is_valid_api_key(api_key):
 def process_ai_request(provider_doc, message, enable_context=None):
     service_instance = None
     try:
+        from ai_assistant_app.utils import ERPNextTools
+        if ERPNextTools().is_erpnext_context_enabled(enable_context):
+            message = f"{message}\n\n[CRITICAL INSTRUCTION: You are strictly an ERPNext database querying assistant. You MUST ONLY answer questions by querying the ERPNext database using the provided tools. Do NOT answer general knowledge questions. If the user asks a general question, reply exactly with: 'I can only assist with querying the ERPNext database.']"
+
         service_class = PROVIDER_CLASSES.get(provider_doc.provider)
         if not service_class:
             return _("Selected provider is not supported for chat yet.")

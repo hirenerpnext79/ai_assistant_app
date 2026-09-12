@@ -370,23 +370,16 @@ class ERPNextTools:
         ]
 
     def _get_doctype_list_str(self, provider_doc) -> str:
-        if not provider_doc or not provider_doc.ai_doctype_permission:
-            return "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
-
-        all_doctypes = set()
-        for perm_row in provider_doc.ai_doctype_permission:
-            perm_name = perm_row.ai_doctype_permission
-            if not perm_name:
-                continue
-            try:
-                perm_doc = frappe.get_cached_doc("AI Assistant Permission", perm_name)
-                if perm_doc.allowed_doctypes:
-                    for row in perm_doc.allowed_doctypes:
-                        if row.document_type:
-                            all_doctypes.add(row.document_type)
-            except Exception:
-                continue
-
-        if all_doctypes:
-            return ", ".join(sorted(all_doctypes))
-        return "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
+        try:
+            from ai_assistant_app.api.ai_handler import get_all_allowed_doctypes
+            allowed_doctypes = get_all_allowed_doctypes(provider_doc)
+            
+            if not allowed_doctypes:
+                return "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
+                
+            if "*" in allowed_doctypes:
+                return "All ERPNext DocTypes"
+                
+            return ", ".join(sorted(allowed_doctypes))
+        except Exception as e:
+            return f"Error retrieving doctypes: {str(e)}"
