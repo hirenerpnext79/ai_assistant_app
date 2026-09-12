@@ -12,7 +12,7 @@
   "ai_response",
   "response_data",
   "ai_api_response",
-  "usage_token"
+  "usage_details"
  ],
  "fields": [
   {
@@ -51,26 +51,27 @@
    "read_only": 1
   },
   {
-   "fieldname": "usage_token",
-   "fieldtype": "Int",
-   "label": "Usage Token",
-   "read_only": 1
-  },
-  {
    "fieldname": "prompt",
    "fieldtype": "Code",
    "in_list_view": 1,
    "label": "Prompt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "usage_details",
+   "fieldtype": "Code",
+   "label": "Usage Details",
+   "options": "JSON",
    "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-08 13:05:33.344948",
- "modified_by": "Administrator",
+ "modified": "2026-09-12 16:02:56.819393",
+ "modified_by": "hirenerpnext79@gmail.com",
  "module": "Ai Assistant App",
- "name": "Alexa Log",
+ "name": "Akansha Log",
  "owner": "Administrator",
  "permissions": [
   {

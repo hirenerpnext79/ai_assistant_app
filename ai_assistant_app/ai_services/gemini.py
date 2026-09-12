@@ -1,7 +1,18 @@
-﻿import frappe
+import frappe
 import json
 import requests
 from ai_assistant_app.ai_services.base import BaseAIService
+
+
+def _strip_gemini_unsupported(schema):
+    """Remove JSON schema fields unsupported by the Gemini API."""
+    UNSUPPORTED = {"additionalProperties", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"}
+    if isinstance(schema, dict):
+        return {k: _strip_gemini_unsupported(v) for k, v in schema.items() if k not in UNSUPPORTED}
+    if isinstance(schema, list):
+        return [_strip_gemini_unsupported(i) for i in schema]
+    return schema
+
 
 class GeminiService(BaseAIService):
     def get_api_url(self, action="generateContent"):
@@ -12,12 +23,12 @@ class GeminiService(BaseAIService):
     def _execute_api_call(self, payload):
         url = self.get_api_url()
         headers = {"Content-Type": "application/json"}
-        
+
         response = requests.post(url, json=payload, headers=headers)
         if response.status_code == 429:
             raise Exception("Rate limit reached. Please wait and try again.")
         response.raise_for_status()
-        
+
         return response.json()
 
     def generate(self, text, prompt):
@@ -29,13 +40,13 @@ class GeminiService(BaseAIService):
         }
         if self.max_tokens:
             payload["generationConfig"]["maxOutputTokens"] = int(self.max_tokens)
-        
+
         try:
             data = self._execute_api_call(payload)
             response_text = data["candidates"][0]["content"]["parts"][0]["text"]
         except Exception:
             response_text = ""
-            
+
         return response_text, {}
 
     def _execute_tools(self, function_calls, tools_manager):
@@ -65,15 +76,16 @@ class GeminiService(BaseAIService):
         tools_manager = ERPNextTools()
         tools_manager.set_provider(self.provider_doc)
 
+        prompt_log = None
         tools = []
         if tools_manager.is_erpnext_context_enabled(enable_context):
             system_instruction = tools_manager.get_system_prompt(self.provider_doc)
             schema_dict = tools_manager.get_query_tool_schema()
             tools = [{
                 "functionDeclarations": [{
-                    "name": schema_dict["name"], 
-                    "description": schema_dict["description"], 
-                    "parameters": schema_dict["parameters"]
+                    "name": schema_dict["name"],
+                    "description": schema_dict["description"],
+                    "parameters": _strip_gemini_unsupported(schema_dict["parameters"])
                 }]
             }]
         else:
@@ -87,7 +99,7 @@ class GeminiService(BaseAIService):
         }
         if self.max_tokens:
             payload["generationConfig"]["maxOutputTokens"] = int(self.max_tokens)
-        
+
         if tools:
             payload["tools"] = tools
 
@@ -95,53 +107,55 @@ class GeminiService(BaseAIService):
             data = self._execute_api_call(payload)
             parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
             function_calls = [p["functionCall"] for p in parts if "functionCall" in p]
-            
+
             if function_calls:
                 contents.append({"role": "model", "parts": parts})
                 function_responses = self._execute_tools(function_calls, tools_manager)
-                contents.append({"role": "user", "parts": function_responses})
                 
+                for fr in function_responses:
+                    resp = fr.get("functionResponse", {}).get("response", {})
+                    if isinstance(resp, dict) and "error" in resp:
+                        error_msg = resp["error"]
+                        # Log the error before returning
+                        log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+                        prompt_log = json.dumps(payload, indent=2)
+                        self.log_interaction(
+                            user_query=message,
+                            ai_response=error_msg,
+                            response_data=log_data,
+                            api_response=json.dumps(fr),
+                            prompt=prompt_log
+                        )
+                        return error_msg
+                contents.append({"role": "user", "parts": function_responses})
+
                 data = self._execute_api_call(payload)
                 parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
 
             response_text = "".join([p["text"] for p in parts if "text" in p])
+
             usage_metadata = data.get("usageMetadata", {})
             usage_details = {
                 "prompt_token_count": usage_metadata.get("promptTokenCount", 0),
                 "candidates_token_count": usage_metadata.get("candidatesTokenCount", 0),
                 "total_token_count": usage_metadata.get("totalTokenCount", 0)
             } if usage_metadata else {}
-            
+
             log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
             prompt_log = json.dumps(payload, indent=2)
             self.log_interaction(
-                user_query=message, 
-                ai_response=response_text, 
-                response_data=log_data, 
+                user_query=message,
+                ai_response=response_text,
+                response_data=log_data,
                 api_response=json.dumps(data),
-                usage_token=usage_metadata.get("totalTokenCount", 0),
                 usage_details=json.dumps(usage_details) if usage_details else None,
                 prompt=prompt_log
             )
             return response_text
-            
-        except requests.exceptions.RequestException as e:
+
+        except Exception as e:
             error_msg = f"Error from Google Gemini API: {str(e)}"
-            if hasattr(e, 'response') and e.response is not None:
-                error_msg += f"\nResponse: {e.response.text}"
-            prompt_log = json.dumps(payload, indent=2) if 'payload' in locals() else None
-            self.log_interaction(message, error_msg, None, None, 0, None, prompt=prompt_log)
+            prompt_log = json.dumps(payload, indent=2) if "payload" in dir() else None
+            self.log_error(message, error_msg, prompt=prompt_log)
+            frappe.log_error(title="Gemini API Error", message=error_msg)
             raise Exception(error_msg)
-            
-        except Exception as e:
-            error_msg = f"Error from Google Gemini API: {str(e)}"
-            prompt_log = json.dumps(payload, indent=2) if 'payload' in locals() else None
-            self.log_interaction(message, error_msg, None, None, 0, None, prompt=prompt_log)
-            raise exception(error_msg)
-            
-        except Exception as e:
-            error_msg = f"Error from Google Gemini API: {str(e)}"
-            self.log_interaction(message, error_msg, None, None, 0, None)
-            raise e
-
-

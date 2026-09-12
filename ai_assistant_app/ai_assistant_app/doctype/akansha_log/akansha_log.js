@@ -1,7 +1,7 @@
 // Copyright (c) 2026, Ai Assistant App and contributors
 // For license information, please see license.txt
 
-// frappe.ui.form.on("Alexa Log", {
+// frappe.ui.form.on("Akansha Log", {
 // 	refresh(frm) {
 
 // 	},

@@ -5,30 +5,13 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "ai_assistant_provider",
-  "chatbot_label",
   "chatbot_icon",
   "enable_erpnext_context",
+  "full_width",
   "query_tool_schema_tab",
   "query_tool_schema"
  ],
  "fields": [
-  {
-   "fieldname": "ai_assistant_provider",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "AI Assistant Provider",
-   "link_filters": "[[\"AI Assistant Provider\",\"status\",\"=\",\"Active\"]]",
-   "options": "AI Assistant Provider",
-   "reqd": 1
-  },
-  {
-   "fieldname": "chatbot_label",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Chatbot Label",
-   "reqd": 1
-  },
   {
    "fieldname": "chatbot_icon",
    "fieldtype": "Attach Image",
@@ -53,13 +36,20 @@
    "fieldname": "query_tool_schema_tab",
    "fieldtype": "Tab Break",
    "label": "Query Tool Schema"
+  },
+  {
+   "default": "0",
+   "description": "If unchecked, then AI chatbot \npopup is normal like chatbot.\nIf checked, then AI chatbot popup is full width.",
+   "fieldname": "full_width",
+   "fieldtype": "Check",
+   "label": "Full Width"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-08 16:38:46.720254",
+ "modified": "2026-09-11 12:21:04.957537",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "AI Assistant App Setting",

@@ -8,7 +8,10 @@
  "field_order": [
   "permission_name",
   "ai_assistant_role",
-  "ai_assistant_user"
+  "column_break_ozob",
+  "ai_assistant_user",
+  "section_break_bgvh",
+  "allowed_doctypes"
  ],
  "fields": [
   {
@@ -30,12 +33,27 @@
    "label": "Permission Name",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "description": "Select specific DocTypes this AI provider is allowed to access. Leave empty to allow all.",
+   "fieldname": "allowed_doctypes",
+   "fieldtype": "Table",
+   "label": "Allowed DocTypes",
+   "options": "AI Allowed DocType"
+  },
+  {
+   "fieldname": "column_break_ozob",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_bgvh",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-02 13:59:30.349685",
+ "modified": "2026-09-12 15:42:04.004486",
  "modified_by": "Administrator",
  "module": "Ai Assistant App",
  "name": "AI Assistant Permission",

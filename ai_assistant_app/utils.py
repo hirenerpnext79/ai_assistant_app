@@ -313,7 +313,7 @@ class ERPNextTools:
 
     def get_system_prompt(self, provider_doc=None):
         doctypes = self._get_doctype_list_str(provider_doc)
-        prompt = getattr(provider_doc, "system_prompt", "") if provider_doc else ""
+        prompt = provider_doc.system_prompt if provider_doc and provider_doc.system_prompt else ""
         today_date = today()
         
         prompt = prompt.replace('{doctype_list_str}', doctypes)
@@ -322,11 +322,6 @@ class ERPNextTools:
         return prompt
 
     def _check_doctype_access(self, doctype: str):
-        allowed = {d.document_type for d in getattr(self.provider_doc, "allowed_doctypes", [])} if self.provider_doc else set()
-        
-        if doctype not in allowed:
-            raise PermissionError(f"Access Denied: The AI is not permitted to query the '{doctype}' DocType. Please add it to the Allowed DocTypes table.")
-
         from ai_assistant_app.api.ai_handler import check_doctype_permission
         is_allowed, msg = check_doctype_permission(self.provider_doc, doctype)
         if not is_allowed:
@@ -375,6 +370,23 @@ class ERPNextTools:
         ]
 
     def _get_doctype_list_str(self, provider_doc) -> str:
-        if provider_doc and provider_doc.allowed_doctypes:
-            return ", ".join(d.document_type for d in provider_doc.allowed_doctypes)
+        if not provider_doc or not provider_doc.ai_doctype_permission:
+            return "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"
+
+        all_doctypes = set()
+        for perm_row in provider_doc.ai_doctype_permission:
+            perm_name = perm_row.ai_doctype_permission
+            if not perm_name:
+                continue
+            try:
+                perm_doc = frappe.get_cached_doc("AI Assistant Permission", perm_name)
+                if perm_doc.allowed_doctypes:
+                    for row in perm_doc.allowed_doctypes:
+                        if row.document_type:
+                            all_doctypes.add(row.document_type)
+            except Exception:
+                continue
+
+        if all_doctypes:
+            return ", ".join(sorted(all_doctypes))
         return "None (You currently do not have access to any DocTypes. If the user asks for data, tell them they must configure the Allowed DocTypes table first.)"

@@ -12,105 +12,126 @@ class OpenRouterService(BaseAIService):
             frappe.throw(frappe._("Base URL is required for OpenRouter Provider Configuration."))
 
     def generate_response(self, user_message, enable_context=None, system_prompt=None):
-        self.validate_configuration()
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        from ai_assistant_app.utils import ERPNextTools
-        tools_manager = ERPNextTools()
-        tools_manager.set_provider(self.provider_doc)
-
-        tools = []
-        if tools_manager.is_erpnext_context_enabled(enable_context):
-            if not system_prompt or system_prompt == "You are a helpful assistant.":
-                system_prompt = tools_manager.get_system_prompt(self.provider_doc)
-            
-            tool_schema = tools_manager.get_query_tool_schema()
-            tools = [{
-                "type": "function",
-                "function": tool_schema
-            }]
-        else:
-            if not system_prompt:
-                system_prompt = "You are a helpful assistant."
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ]
-
-        max_turns = 3
-        current_turn = 0
-        final_content = ""
-        total_usage = {}
-        
-        while current_turn < max_turns:
-            current_turn += 1
-            
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "max_tokens": self.provider_doc.get("max_tokens") or 2048
+        prompt_log = None
+        try:
+            self.validate_configuration()
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
             }
-            if tools:
-                payload["tools"] = tools
-            
-            response = requests.post(self.base_url, headers=headers, json=payload)
-            self.handle_api_errors(response)
-            
-            result_data = response.json()
-            if 'choices' not in result_data or not result_data['choices']:
-                frappe.throw(f"Unexpected response format: {result_data}")
-                
-            choice = result_data['choices'][0]
-            message_obj = choice.get('message', {})
-            usage = result_data.get('usage', {})
-            total_usage['total_tokens'] = total_usage.get('total_tokens', 0) + usage.get('total_tokens', 0)
-            total_usage['prompt_tokens'] = total_usage.get('prompt_tokens', 0) + usage.get('prompt_tokens', 0)
-            total_usage['completion_tokens'] = total_usage.get('completion_tokens', 0) + usage.get('completion_tokens', 0)
+        
+            from ai_assistant_app.utils import ERPNextTools
+            tools_manager = ERPNextTools()
+            tools_manager.set_provider(self.provider_doc)
 
-            if message_obj.get('tool_calls'):
-                messages.append(message_obj)
-                
-                for tool_call in message_obj['tool_calls']:
-                    function_name = tool_call['function']['name']
-                    try:
-                        args = json.loads(tool_call['function']['arguments'])
-                    except Exception:
-                        args = {}
-                    if function_name == "query_erpnext_data":
-                        tool_result = tools_manager.query_erpnext_data(
-                            doctype=args.get('doctype', ''),
-                            fields=args.get('fields', []),
-                            filters=args.get('filters', '{}'),
-                            operation=args.get('operation', 'list'),
-                            order_by=args.get('order_by'),
-                            limit=args.get('limit'),
-                            sum_field=args.get('sum_field'),
-                        )
-                    else:
-                        tool_result = {"error": f"Unknown function {function_name}"}
-                        
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call['id'],
-                        "content": json.dumps(tool_result)
-                    })
+            tools = []
+            if tools_manager.is_erpnext_context_enabled(enable_context):
+                if not system_prompt or system_prompt == "You are a helpful assistant.":
+                    system_prompt = tools_manager.get_system_prompt(self.provider_doc)
+            
+                tool_schema = tools_manager.get_query_tool_schema()
+                tools = [{
+                    "type": "function",
+                    "function": tool_schema
+                }]
             else:
-                final_content = message_obj.get('content', '')
-                break
+                if not system_prompt:
+                    system_prompt = "You are a helpful assistant."
 
-        usage_token = total_usage.get('total_tokens', 0)
-        usage_details = json.dumps(total_usage)
-        log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ]
+
+            max_turns = 3
+            current_turn = 0
+            final_content = ""
+            total_usage = {}
         
-        prompt_log = json.dumps(messages, indent=2)
+            while current_turn < max_turns:
+                current_turn += 1
+            
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "max_tokens": self.provider_doc.get("max_tokens") or 2048
+                }
+                if tools:
+                    payload["tools"] = tools
+            
+                response = requests.post(self.base_url, headers=headers, json=payload)
+                self.handle_api_errors(response)
+            
+                result_data = response.json()
+                if 'choices' not in result_data or not result_data['choices']:
+                    frappe.throw(f"Unexpected response format: {result_data}")
+                
+                choice = result_data['choices'][0]
+                message_obj = choice.get('message', {})
+                usage = result_data.get('usage', {})
+                total_usage['total_tokens'] = total_usage.get('total_tokens', 0) + usage.get('total_tokens', 0)
+                total_usage['prompt_tokens'] = total_usage.get('prompt_tokens', 0) + usage.get('prompt_tokens', 0)
+                total_usage['completion_tokens'] = total_usage.get('completion_tokens', 0) + usage.get('completion_tokens', 0)
+
+                if message_obj.get('tool_calls'):
+                    messages.append(message_obj)
+                
+                    for tool_call in message_obj['tool_calls']:
+                        function_name = tool_call['function']['name']
+                        try:
+                            args = json.loads(tool_call['function']['arguments'])
+                        except Exception:
+                            args = {}
+                        if function_name == "query_erpnext_data":
+                            tool_result = tools_manager.query_erpnext_data(
+                                doctype=args.get('doctype', ''),
+                                fields=args.get('fields', []),
+                                filters=args.get('filters', '{}'),
+                                operation=args.get('operation', 'list'),
+                                order_by=args.get('order_by'),
+                                limit=args.get('limit'),
+                                sum_field=args.get('sum_field'),
+                            )
+                            if isinstance(tool_result, dict) and "error" in tool_result:
+                                error_msg = tool_result["error"]
+                                log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+                                prompt_log = json.dumps(messages, indent=2)
+                                usage_details = json.dumps(total_usage)
+                                self.log_interaction(
+                                    user_query=user_message,
+                                    ai_response=error_msg,
+                                    response_data=log_data,
+                                    api_response=json.dumps(tool_result),
+                                    usage_details=usage_details,
+                                    prompt=prompt_log
+                                )
+                                return error_msg
+                        else:
+                            tool_result = {"error": f"Unknown function {function_name}"}
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call['id'],
+                            "content": json.dumps(tool_result)
+                        })
+                else:
+                    final_content = message_obj.get('content', '')
+                    break
+            log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
         
-        self.log_interaction(user_message, final_content, log_data, None, usage_token, usage_details, prompt=prompt_log)
+            prompt_log = json.dumps(messages, indent=2)
         
-        return final_content
+            usage_details = json.dumps(total_usage)
+            self.log_interaction(user_message, final_content, log_data, None, usage_details, prompt=prompt_log)
+        
+            return final_content
+
+        except Exception as e:
+            error_msg = f"OpenRouter API Error: {str(e)}"
+            self.log_error(user_message, error_msg, prompt=prompt_log)
+            import frappe as _frappe
+            _frappe.log_error(title="OpenRouter API Error", message=error_msg)
+            raise Exception(error_msg)
 
     def handle_api_errors(self, response):
         if response.status_code == 200:

@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class AlexaLog(Document):
+class AIDoctypePermission(Document):
 	pass
