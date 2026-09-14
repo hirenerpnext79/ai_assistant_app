@@ -52,6 +52,36 @@ ai_assistant_app.Assistant = {
         });
     },
 
+    get_quick_questions_erp: function() {
+        return [
+            "What Payment Entries are pending collection today?",
+            "List all overdue Sales Invoices.",
+            "What is the total outstanding amount for all Customers?",
+            "Show me a summary of today's Sales Orders and Sales Invoices.",
+            "List all Purchase Orders and Purchase Receipts made today.",
+            "Which Employees have an absent Attendance record today?",
+            "Which Employees are missing an Employee Checkin today?",
+            "Which Sales Orders are waiting for a Delivery Note?",
+            "Which Purchase Orders are waiting for a Purchase Receipt?",
+            "Which Items are running low in stock based on Bin actual qty?"
+        ];
+    },
+
+    get_quick_questions_general: function() {
+        return [
+            "How do I create a new Sales Invoice in ERPNext?",
+            "What is the process for bank reconciliation in ERPNext?",
+            "How do I manage user permissions in ERPNext?",
+            "Explain the manufacturing routing process in ERPNext.",
+            "How do I create a custom Doctype in ERPNext?",
+            "What is the best way to handle inventory valuation in ERPNext?",
+            "How do I set up a recurring Journal Entry in ERPNext?",
+            "Explain how Pricing Rules work in ERPNext.",
+            "How can I customize a Print Format in ERPNext?",
+            "Difference between Sales Order & Delivery Note in ERPNext?"
+        ];
+    },
+
     setup_ui: function () {
         // Floating button
         const btn = document.createElement("button");
@@ -83,31 +113,8 @@ ai_assistant_app.Assistant = {
         const context_checked = this.enable_erpnext_context ? "checked" : "";
         const fw_checked = this.full_width ? "checked" : "";
 
-        this.quick_questions_erp = [
-            "What payments do I need to collect today?",
-            "Do I have any overdue payments?",
-            "How much money is currently pending from customers?",
-            "How are sales going today?",
-            "What purchases were made today?",
-            "Who is absent today?",
-            "Who hasn't checked in yet today?",
-            "Which customer orders are still waiting to be delivered?",
-            "Which orders do we still need to receive from suppliers?",
-            "Which items are running low in stock?"
-        ];
-        
-        this.quick_questions_general = [
-            "How do I create a new Sales Invoice?",
-            "What is the process for bank reconciliation?",
-            "How do I manage user permissions?",
-            "Explain the manufacturing routing process?",
-            "How do I create a custom Doctype?",
-            "What is the best way to handle inventory valuation?",
-            "How do I set up a recurring Journal Entry?",
-            "Explain how Pricing Rules work.",
-            "How can I customize a Print Format?",
-            "Difference between Sales Order & Delivery Note?"
-        ];
+        this.quick_questions_erp = this.get_quick_questions_erp();
+        this.quick_questions_general = this.get_quick_questions_general();
         
         this.qq_html_erp = this.quick_questions_erp.map(q => `<div class="aak-select-option aak-qq-option" style="white-space: normal; line-height: 1.4; border-bottom: 1px solid #f3f4f6;">${q}</div>`).join("");
         this.qq_html_general = this.quick_questions_general.map(q => `<div class="aak-select-option aak-qq-option" style="white-space: normal; line-height: 1.4; border-bottom: 1px solid #f3f4f6;">${q}</div>`).join("");
@@ -177,7 +184,6 @@ ai_assistant_app.Assistant = {
                             </button>
                             <div class="aak-select-options" id="ask-akansha-settings-options" style="left: 12px; bottom: calc(100% + 12px); width: calc(100% - 24px); min-width: unset; padding: 0; cursor: default; transform-origin: bottom left; box-sizing: border-box; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);">
                                 
-                                ${this.enable_erpnext_context ? `
                                 <div style="padding: 12px 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; cursor: default;">
                                     <span style="font-size: 13px; font-weight: 500; color: #374151;">ERP Context</span>
                                     <label class="aak-toggle-label" title="Enable ERPNext Context" style="margin: 0; cursor: pointer;">
@@ -185,7 +191,6 @@ ai_assistant_app.Assistant = {
                                         <span class="aak-toggle-track"></span>
                                     </label>
                                 </div>
-                                ` : ""}
 
                                 <div id="ask-akansha-qq-container" style="display: block;">
                                     <div style="padding: 12px 16px 8px; cursor: default;">
@@ -217,8 +222,8 @@ ai_assistant_app.Assistant = {
             callback: (r) => {
                 if (r.message && r.message.length > 0) {
                     r.message.forEach(log => {
-                        if (log.user_query) this.add_message_to_dom(log.user_query, "user");
-                        if (log.ai_response) this.add_message_to_dom(log.ai_response, "akansha");
+                        if (log.user_query) this.add_message_to_dom(log.user_query, "user", log.creation);
+                        if (log.ai_response) this.add_message_to_dom(log.ai_response, "akansha", log.creation);
                     });
 
                 } else if (!this.allowed_providers || this.allowed_providers.length > 0) {
@@ -429,7 +434,7 @@ ai_assistant_app.Assistant = {
         });
     },
 
-    add_message_to_dom: function (text, sender) {
+    add_message_to_dom: function (text, sender, creation = null) {
         if (!text) return;
 
         const wrapper = document.createElement("div");
@@ -438,13 +443,23 @@ ai_assistant_app.Assistant = {
         const bubble = document.createElement("div");
         bubble.className = `chat-message ${sender}`;
 
+        const content_div = document.createElement("div");
+        content_div.className = "msg-content";
         if (sender === "akansha") {
-            bubble.innerHTML = typeof frappe.markdown !== "undefined" ? frappe.markdown(text) : text;
+            content_div.innerHTML = typeof frappe.markdown !== "undefined" ? frappe.markdown(text) : text;
         } else {
-            bubble.textContent = text;
+            content_div.textContent = text;
         }
+        bubble.appendChild(content_div);
 
+        const time_div = document.createElement("div");
+        time_div.className = "aak-msg-time";
+        const now = creation ? new Date(creation) : new Date();
+        time_div.textContent = now.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        bubble.appendChild(time_div);
+        
         wrapper.appendChild(bubble);
+
         this.messages.appendChild(wrapper);
         this.messages.scrollTop = this.messages.scrollHeight;
     },
@@ -468,3 +483,9 @@ ai_assistant_app.Assistant = {
 $(document).ready(function () {
     ai_assistant_app.Assistant.init();
 });
+
+
+
+
+
+

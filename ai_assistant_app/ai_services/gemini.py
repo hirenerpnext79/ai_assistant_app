@@ -49,57 +49,28 @@ class GeminiService(BaseAIService):
 
         return response_text, {}
 
-    def _execute_tools(self, function_calls, tools_manager):
-        function_responses = []
-        for func_call in function_calls:
-            if func_call["name"] == "query_erpnext_data":
-                args = func_call.get("args", {})
-                tool_result = tools_manager.query_erpnext_data(
-                    doctype=args.get("doctype", ""),
-                    fields=args.get("fields", []),
-                    filters=args.get("filters", "{}"),
-                    operation=args.get("operation", "list"),
-                    order_by=args.get("order_by"),
-                    limit=args.get("limit"),
-                    sum_field=args.get("sum_field"),
-                )
-                function_responses.append({
-                    "functionResponse": {
-                        "name": func_call["name"],
-                        "response": tool_result if isinstance(tool_result, dict) else {"result": tool_result}
-                    }
-                })
-        return function_responses
-
-    def generate_response(self, message, enable_context=None):
-        from ai_assistant_app.utils import ERPNextTools
-        tools_manager = ERPNextTools()
-        tools_manager.set_provider(self.provider_doc)
-
-        prompt_log = None
+    def generate_response(self, message, enable_context=None, system_prompt=None):
+        tools_manager, final_system_prompt, tool_schema = self._prepare_tools_and_context(enable_context, system_prompt)
+        
         tools = []
-        if tools_manager.is_erpnext_context_enabled(enable_context):
-            system_instruction = tools_manager.get_system_prompt(self.provider_doc)
-            schema_dict = tools_manager.get_query_tool_schema()
+        if tool_schema:
             tools = [{
                 "functionDeclarations": [{
-                    "name": schema_dict["name"],
-                    "description": schema_dict["description"],
-                    "parameters": _strip_gemini_unsupported(schema_dict["parameters"])
+                    "name": tool_schema["name"],
+                    "description": tool_schema["description"],
+                    "parameters": _strip_gemini_unsupported(tool_schema["parameters"])
                 }]
             }]
-        else:
-            system_instruction = "You are a helpful assistant."
 
         contents = [{"role": "user", "parts": [{"text": message}]}]
         payload = {
-            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "systemInstruction": {"parts": [{"text": final_system_prompt}]},
             "contents": contents,
             "generationConfig": {"temperature": 0.7}
         }
+        
         if self.max_tokens:
             payload["generationConfig"]["maxOutputTokens"] = int(self.max_tokens)
-
         if tools:
             payload["tools"] = tools
 
@@ -110,30 +81,34 @@ class GeminiService(BaseAIService):
 
             if function_calls:
                 contents.append({"role": "model", "parts": parts})
-                function_responses = self._execute_tools(function_calls, tools_manager)
+                function_responses = []
                 
-                for fr in function_responses:
-                    resp = fr.get("functionResponse", {}).get("response", {})
-                    if isinstance(resp, dict) and "error" in resp:
-                        error_msg = resp["error"]
-                        # Log the error before returning
-                        log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
-                        prompt_log = json.dumps(payload, indent=2)
-                        self.log_interaction(
-                            user_query=message,
-                            ai_response=error_msg,
-                            response_data=log_data,
-                            api_response=json.dumps(fr),
-                            prompt=prompt_log
-                        )
-                        return error_msg
+                for func_call in function_calls:
+                    result = self._execute_tool(
+                        function_name=func_call["name"],
+                        args=func_call.get("args", {}),
+                        tools_manager=tools_manager,
+                        messages_for_logging=payload,
+                        enable_context=enable_context,
+                        user_query=message
+                    )
+                    
+                    if isinstance(result, dict) and "error" in result:
+                        return result["error"]
+                        
+                    function_responses.append({
+                        "functionResponse": {
+                            "name": func_call["name"],
+                            "response": result if isinstance(result, dict) else {"result": result}
+                        }
+                    })
+                    
                 contents.append({"role": "user", "parts": function_responses})
-
                 data = self._execute_api_call(payload)
                 parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
 
             response_text = "".join([p["text"] for p in parts if "text" in p])
-
+            
             usage_metadata = data.get("usageMetadata", {})
             usage_details = {
                 "prompt_token_count": usage_metadata.get("promptTokenCount", 0),
@@ -143,19 +118,21 @@ class GeminiService(BaseAIService):
 
             log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
             prompt_log = json.dumps(payload, indent=2)
+            
             self.log_interaction(
                 user_query=message,
                 ai_response=response_text,
                 response_data=log_data,
                 api_response=json.dumps(data),
                 usage_details=json.dumps(usage_details) if usage_details else None,
-                prompt=prompt_log
+                prompt=prompt_log,
+                erpnext_context=enable_context
             )
             return response_text
 
         except Exception as e:
             error_msg = f"Error from Google Gemini API: {str(e)}"
             prompt_log = json.dumps(payload, indent=2) if "payload" in dir() else None
-            self.log_error(message, error_msg, prompt=prompt_log)
+            self.log_error(message, error_msg, prompt=prompt_log, erpnext_context=enable_context)
             frappe.log_error(title="Gemini API Error", message=error_msg)
             raise Exception(error_msg)

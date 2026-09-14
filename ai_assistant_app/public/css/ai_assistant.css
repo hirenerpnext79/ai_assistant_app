@@ -229,6 +229,9 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
     word-break: break-word;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .chat-message.user {
@@ -556,6 +559,11 @@
 .aak-select-option:hover {
     background: #f9fafb;
 }
+.aak-select-option.selected {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 500;
+}
 .aak-sel-icon {
     font-family: monospace;
     font-size: 12px;
@@ -581,3 +589,22 @@
     white-space: nowrap;
     flex-wrap: nowrap;
 }
+
+.aak-msg-time {
+    font-size: 11.5px;
+    font-weight: 500;
+    align-self: flex-end;
+    margin-top: 5px;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    line-height: 1;
+}
+.chat-message.user .aak-msg-time {
+    color: #ffffff;
+}
+.chat-message.akansha .aak-msg-time {
+    color: #000000;
+}
+
+
+

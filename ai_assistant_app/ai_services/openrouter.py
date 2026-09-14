@@ -20,26 +20,17 @@ class OpenRouterService(BaseAIService):
                 "Content-Type": "application/json"
             }
         
-            from ai_assistant_app.utils import ERPNextTools
-            tools_manager = ERPNextTools()
-            tools_manager.set_provider(self.provider_doc)
+            tools_manager, final_system_prompt, tool_schema = self._prepare_tools_and_context(enable_context, system_prompt)
 
             tools = []
-            if tools_manager.is_erpnext_context_enabled(enable_context):
-                if not system_prompt or system_prompt == "You are a helpful assistant.":
-                    system_prompt = tools_manager.get_system_prompt(self.provider_doc)
-            
-                tool_schema = tools_manager.get_query_tool_schema()
+            if tool_schema:
                 tools = [{
                     "type": "function",
                     "function": tool_schema
                 }]
-            else:
-                if not system_prompt:
-                    system_prompt = "You are a helpful assistant."
 
             messages = [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": final_system_prompt},
                 {"role": "user", "content": user_message}
             ]
 
@@ -82,32 +73,18 @@ class OpenRouterService(BaseAIService):
                             args = json.loads(tool_call['function']['arguments'])
                         except Exception:
                             args = {}
-                        if function_name == "query_erpnext_data":
-                            tool_result = tools_manager.query_erpnext_data(
-                                doctype=args.get('doctype', ''),
-                                fields=args.get('fields', []),
-                                filters=args.get('filters', '{}'),
-                                operation=args.get('operation', 'list'),
-                                order_by=args.get('order_by'),
-                                limit=args.get('limit'),
-                                sum_field=args.get('sum_field'),
-                            )
-                            if isinstance(tool_result, dict) and "error" in tool_result:
-                                error_msg = tool_result["error"]
-                                log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
-                                prompt_log = json.dumps(messages, indent=2)
-                                usage_details = json.dumps(total_usage)
-                                self.log_interaction(
-                                    user_query=user_message,
-                                    ai_response=error_msg,
-                                    response_data=log_data,
-                                    api_response=json.dumps(tool_result),
-                                    usage_details=usage_details,
-                                    prompt=prompt_log
-                                )
-                                return error_msg
-                        else:
-                            tool_result = {"error": f"Unknown function {function_name}"}
+                            
+                        tool_result = self._execute_tool(
+                            function_name=function_name,
+                            args=args,
+                            tools_manager=tools_manager,
+                            messages_for_logging=messages,
+                            enable_context=enable_context,
+                            user_query=user_message
+                        )
+                        
+                        if isinstance(tool_result, dict) and "error" in tool_result:
+                            return tool_result["error"]
                         
                         messages.append({
                             "role": "tool",
@@ -117,20 +94,27 @@ class OpenRouterService(BaseAIService):
                 else:
                     final_content = message_obj.get('content', '')
                     break
+                    
             log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
-        
             prompt_log = json.dumps(messages, indent=2)
-        
             usage_details = json.dumps(total_usage)
-            self.log_interaction(user_message, final_content, log_data, None, usage_details, prompt=prompt_log)
+            
+            self.log_interaction(
+                user_query=user_message,
+                ai_response=final_content,
+                response_data=log_data,
+                api_response=None,
+                usage_details=usage_details,
+                prompt=prompt_log,
+                erpnext_context=enable_context
+            )
         
             return final_content
 
         except Exception as e:
             error_msg = f"OpenRouter API Error: {str(e)}"
-            self.log_error(user_message, error_msg, prompt=prompt_log)
-            import frappe as _frappe
-            _frappe.log_error(title="OpenRouter API Error", message=error_msg)
+            self.log_error(user_message, error_msg, prompt=prompt_log, erpnext_context=enable_context)
+            frappe.log_error(title="OpenRouter API Error", message=error_msg)
             raise Exception(error_msg)
 
     def handle_api_errors(self, response):
@@ -147,5 +131,3 @@ class OpenRouterService(BaseAIService):
             error_message = response.text
             
         frappe.throw(frappe._(f"OpenRouter API Error: {error_message} (Status Code: {response.status_code})"))
-
-
