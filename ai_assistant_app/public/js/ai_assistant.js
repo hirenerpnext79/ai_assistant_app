@@ -481,6 +481,12 @@ ai_assistant_app.Assistant = {
 };
 
 $(document).ready(function () {
+    // Stop execution on the first line if the user doesn't have permission to read the settings
+    if (frappe.boot && frappe.boot.user && frappe.boot.user.can_read && 
+        !frappe.boot.user.can_read.includes("AI Assistant App Setting")) {
+        return;
+    }
+    
     ai_assistant_app.Assistant.init();
 });
 
