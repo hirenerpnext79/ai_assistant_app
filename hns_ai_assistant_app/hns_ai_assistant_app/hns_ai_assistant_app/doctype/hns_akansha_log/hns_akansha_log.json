@@ -1,0 +1,117 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-08-27 14:02:23.942974",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "erpnext_context",
+  "user_query",
+  "usage_details",
+  "ai_prompt_tab",
+  "prompt",
+  "ai_response_tab",
+  "ai_api_response",
+  "response_data",
+  "ai_response"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "user_query",
+   "fieldtype": "Long Text",
+   "in_list_view": 1,
+   "label": "User Query",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_response",
+   "fieldtype": "Long Text",
+   "label": "AI Response",
+   "read_only": 1
+  },
+  {
+   "fieldname": "response_data",
+   "fieldtype": "Code",
+   "label": "Response Data",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_api_response",
+   "fieldtype": "Code",
+   "label": "AI API Response",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "prompt",
+   "fieldtype": "Code",
+   "in_list_view": 1,
+   "label": "Prompt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "usage_details",
+   "fieldtype": "Code",
+   "label": "Usage Details",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "erpnext_context",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "ERPNext Context",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_prompt_tab",
+   "fieldtype": "Tab Break",
+   "label": "AI Prompt"
+  },
+  {
+   "fieldname": "ai_response_tab",
+   "fieldtype": "Tab Break",
+   "label": "AI Response"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-14 11:20:10.977005",
+ "modified_by": "hirenerpnext79@gmail.com",
+ "module": "HNS AI Assistant App",
+ "name": "Hns Akansha Log",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

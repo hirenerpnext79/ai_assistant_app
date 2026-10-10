@@ -1,9 +1,9 @@
 [project]
-name = "ai_assistant_app"
+name = "hns_ai_assistant_app"
 authors = [
-    { name = "Ai Assistant App", email = "hns@gmail.com"}
+    { name = "HNS Ai Assistant App", email = "hns@gmail.com"}
 ]
-description = "Ai Assistant App"
+description = "HNS Ai Assistant App"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
