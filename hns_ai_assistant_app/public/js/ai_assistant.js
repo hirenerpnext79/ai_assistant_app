@@ -229,7 +229,7 @@ hns_ai_assistant_app.Assistant = {
                 } else if (!this.allowed_providers || this.allowed_providers.length > 0) {
                     const now = new Date();
                     const formatted_date = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const date_html = `<div style="text-align: center; margin: 0px 0 -8px;"><span style="display: inline-block; background-color: #f3f4f6; color: #4b5563; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.2px;">${formatted_date}</span></div>`;
+                    const date_html = `<div style="text-align: center; margin: -10px 0 4px;"><span style="display: inline-block; background-color: #f3f4f6; color: #4b5563; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.2px;">${formatted_date}</span></div>`;
                     this.messages.insertAdjacentHTML('beforeend', date_html);
                     this.add_message_to_dom("Hello! 👋 How can I help you today?", "akansha");
                 }
