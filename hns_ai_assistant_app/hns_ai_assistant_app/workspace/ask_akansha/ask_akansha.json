@@ -1,15 +1,14 @@
 {
  "charts": [],
- "content": "[{\"id\":\"VUiHedx9nX\",\"type\":\"card\",\"data\":{\"card_name\":\"Ask Akansha Setting\",\"col\":4}}]",
- "creation": "2026-08-31 11:27:27.896737",
+ "content": "[{\"id\":\"veRIX_72jo\",\"type\":\"card\",\"data\":{\"card_name\":\"Ask Akansha Setting\",\"col\":4}}]",
+ "creation": "2026-10-10 14:56:46.632262",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "for_user": "",
- "hide_custom": 0,
- "icon": "",
+ "hide_custom": 1,
  "idx": 0,
- "indicator_color": "",
+ "indicator_color": "green",
  "is_hidden": 0,
  "label": "Ask Akansha",
  "links": [
@@ -45,9 +44,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Assistant App Setting",
+   "label": "Hns AI Assistant App Setting",
    "link_count": 0,
-   "link_to": "AI Assistant App Setting",
+   "link_to": "Hns AI Assistant App Setting",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -63,7 +62,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-09-11 12:08:43.094839",
+ "modified": "2026-10-10 15:21:54.998763",
  "modified_by": "Administrator",
  "module": "HNS AI Assistant App",
  "name": "Ask Akansha",
@@ -73,7 +72,7 @@
  "public": 1,
  "quick_lists": [],
  "roles": [],
- "sequence_id": 34.0,
+ "sequence_id": 55.0,
  "shortcuts": [],
  "title": "Ask Akansha"
 }

@@ -7,7 +7,7 @@ hns_ai_assistant_app.Assistant = {
     init: function () {
         frappe.call({
             method: "frappe.client.get",
-            args: { doctype: "AI Assistant App Setting", name: "AI Assistant App Setting" },
+            args: { doctype: "Hns AI Assistant App Setting", name: "Hns AI Assistant App Setting" },
             callback: (r) => {
                 const settings = r.message || {};
                 this.chatbot_icon = settings.chatbot_icon || "/assets/hns_ai_assistant_app/images/akansha_icon.png";
@@ -227,6 +227,10 @@ hns_ai_assistant_app.Assistant = {
                     });
 
                 } else if (!this.allowed_providers || this.allowed_providers.length > 0) {
+                    const now = new Date();
+                    const formatted_date = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const date_html = `<div style="text-align: center; margin: 0px 0 -8px;"><span style="display: inline-block; background-color: #f3f4f6; color: #4b5563; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.2px;">${formatted_date}</span></div>`;
+                    this.messages.insertAdjacentHTML('beforeend', date_html);
                     this.add_message_to_dom("Hello! 👋 How can I help you today?", "akansha");
                 }
                 
@@ -483,7 +487,7 @@ hns_ai_assistant_app.Assistant = {
 $(document).ready(function () {
     // Stop execution on the first line if the user doesn't have permission to read the settings
     if (frappe.boot && frappe.boot.user && frappe.boot.user.can_read && 
-        !frappe.boot.user.can_read.includes("AI Assistant App Setting")) {
+        !frappe.boot.user.can_read.includes("Hns AI Assistant App Setting")) {
         return;
     }
     
