@@ -2,7 +2,7 @@ import frappe
 import json
 from frappe.utils import now, today
 
-SETTINGS_DOCTYPE = "AI Assistant App Setting"
+SETTINGS_DOCTYPE = "Hns AI Assistant App Setting"
 
 
 class ERPNextTools:

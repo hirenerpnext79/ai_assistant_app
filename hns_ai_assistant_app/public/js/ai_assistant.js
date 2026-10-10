@@ -10,7 +10,7 @@ hns_ai_assistant_app.Assistant = {
             args: { doctype: "Hns AI Assistant App Setting", name: "Hns AI Assistant App Setting" },
             callback: (r) => {
                 const settings = r.message || {};
-                this.chatbot_icon = settings.chatbot_icon || "/assets/hns_ai_assistant_app/images/akansha_icon.png";
+                this.chatbot_icon = settings.chatbot_icon || "/assets/hns_ai_assistant_app/images/akansha_icon.webp";
                 this.enable_erpnext_context = settings.enable_erpnext_context === undefined ? 1 : settings.enable_erpnext_context;
                 this.full_width = settings.full_width === 1;
                 this.load_allowed_providers();
@@ -227,10 +227,6 @@ hns_ai_assistant_app.Assistant = {
                     });
 
                 } else if (!this.allowed_providers || this.allowed_providers.length > 0) {
-                    const now = new Date();
-                    const formatted_date = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const date_html = `<div style="text-align: center; margin: -10px 0 4px;"><span style="display: inline-block; background-color: #f3f4f6; color: #4b5563; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.2px;">${formatted_date}</span></div>`;
-                    this.messages.insertAdjacentHTML('beforeend', date_html);
                     this.add_message_to_dom("Hello! 👋 How can I help you today?", "akansha");
                 }
                 
@@ -441,6 +437,16 @@ hns_ai_assistant_app.Assistant = {
     add_message_to_dom: function (text, sender, creation = null) {
         if (!text) return;
 
+        const now = creation ? new Date(creation) : new Date();
+        const date_key = now.toLocaleDateString();
+
+        if (this.last_msg_date !== date_key) {
+            const formatted_date = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            const date_html = `<div style="text-align: center; margin: -10px 0 4px;"><span style="display: inline-block; background-color: #f3f4f6; color: #4b5563; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.2px;">${formatted_date}</span></div>`;
+            this.messages.insertAdjacentHTML('beforeend', date_html);
+            this.last_msg_date = date_key;
+        }
+
         const wrapper = document.createElement("div");
         wrapper.className = `aak-msg-row aak-msg-${sender}`;
 
@@ -458,7 +464,6 @@ hns_ai_assistant_app.Assistant = {
 
         const time_div = document.createElement("div");
         time_div.className = "aak-msg-time";
-        const now = creation ? new Date(creation) : new Date();
         time_div.textContent = now.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
         bubble.appendChild(time_div);
         

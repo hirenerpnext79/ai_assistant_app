@@ -2,7 +2,7 @@ import frappe
 import json
 from frappe.utils import now, today
 
-SETTINGS_DOCTYPE = "AI Assistant App Setting"
+SETTINGS_DOCTYPE = "Hns AI Assistant App Setting"
 
 
 class ERPNextTools:
@@ -325,7 +325,7 @@ class ERPNextTools:
         from hns_ai_assistant_app.api.ai_handler import check_doctype_permission
         is_allowed, msg = check_doctype_permission(self.provider_doc, doctype)
         if not is_allowed:
-            raise PermissionError(msg)
+            frappe.throw(msg)
 
     def _parse_filters(self, filters):
         if isinstance(filters, (dict, list)):

@@ -49,7 +49,7 @@ def ask_akansha(message, context=None, enable_context=None, provider_name=None):
     return process_ai_request(provider_doc, message, enable_context)
 
 def _check_app_permission(message, enable_context=None):
-    if not frappe.has_permission("AI Assistant App Setting", "read"):
+    if not frappe.has_permission("Hns AI Assistant App Setting", "read"):
         _log_early_exit(message, _("You do not have permission to use the AI Assistant."), enable_context)
         return False
     return True
@@ -102,7 +102,7 @@ def _validate_api_key(provider_doc, message, enable_context=None):
 
 @frappe.whitelist()
 def get_allowed_providers():
-    if not frappe.has_permission("AI Assistant App Setting", "read"):
+    if not frappe.has_permission("Hns AI Assistant App Setting", "read"):
         return []
 
     try:
@@ -175,20 +175,12 @@ def is_valid_api_key(api_key):
 def process_ai_request(provider_doc, message, enable_context=None):
     service_instance = None
     try:
-        # from hns_ai_assistant_app.utils import ERPNextTools
-        # if ERPNextTools().is_erpnext_context_enabled(enable_context):
-        #     message = f"{message}\n\n[CRITICAL INSTRUCTION: You are strictly an ERPNext database querying assistant. You MUST ONLY answer questions by querying the ERPNext database using the provided tools. Do NOT answer general knowledge questions. If the user asks a general question, reply exactly with: 'I can only assist with querying the ERPNext database.']"
-
         service_class = PROVIDER_CLASSES.get(provider_doc.provider)
         if not service_class:
             return _("Selected provider is not supported for chat yet.")
 
         service_instance = service_class(provider_doc)
-        # Providers handle their own logging for both success and errors internally
-        response = service_instance.generate_response(message, enable_context)
-            
-        return response
-
+        return service_instance.generate_response(message, enable_context)
     except Exception as e:
         frappe.log_error(title="AI API Error", message=str(e))
         
@@ -205,7 +197,7 @@ def process_ai_request(provider_doc, message, enable_context=None):
 
 @frappe.whitelist()
 def get_chat_history():
-    if not frappe.has_permission("AI Assistant App Setting", "read"):
+    if not frappe.has_permission("Hns AI Assistant App Setting", "read"):
         return []
 
     logs = frappe.get_all(
@@ -220,6 +212,9 @@ def get_chat_history():
 
 
 def check_doctype_permission(provider_doc, doctype=None):
+    if doctype and not frappe.db.exists("DocType", doctype):
+        return False, _("DocType {0} does not exist.").format(doctype)
+    
     user = frappe.session.user
     if user == "Administrator":
         return True, ""
@@ -254,3 +249,40 @@ def check_doctype_permission(provider_doc, doctype=None):
                 return True, ""
 
     return False, _('You do not have permission to access {0}').format(doctype or 'the AI Assistant')
+
+
+def get_all_allowed_doctypes(provider_doc):
+    user = frappe.session.user
+    if user == "Administrator":
+        return ["*"]
+
+    provider_permissions = provider_doc.get("hns_ai_doctype_permission")
+    if not provider_permissions:
+        return []
+
+    roles = frappe.get_roles(user)
+    allowed = set()
+
+    for row in provider_permissions:
+        perm_name = row.hns_ai_doctype_permission
+        if not perm_name:
+            continue
+
+        perm_doc = frappe.get_doc("Hns AI Assistant Permission", perm_name)
+
+        user_match = False
+        if not perm_doc.hns_ai_assistant_user and not perm_doc.hns_ai_assistant_role:
+            user_match = True
+        elif any(u.user == user for u in perm_doc.hns_ai_assistant_user):
+            user_match = True
+        elif any(r.role in roles for r in perm_doc.hns_ai_assistant_role):
+            user_match = True
+
+        if user_match:
+            if not perm_doc.allowed_doctypes:
+                return ["*"]
+            for d in perm_doc.allowed_doctypes:
+                allowed.add(d.document_type)
+    print(allowed)
+    return list(allowed)
+
