@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class AkanshaLog(Document):
+class HnsAkanshaLog(Document):
 	pass

@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class AIDoctypePermission(Document):
+class HnsAIDoctypePermission(Document):
 	pass

@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class AIAssistantProvider(Document):
+class HnsAIAssistantProvider(Document):
 	pass

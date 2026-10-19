@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestAIAssistantPermission(FrappeTestCase):
+class TestHnsAIAssistantPermission(FrappeTestCase):
 	pass

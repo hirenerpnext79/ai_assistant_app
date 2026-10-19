@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestAkanshaLog(FrappeTestCase):
+class TestHnsAkanshaLog(FrappeTestCase):
 	pass
