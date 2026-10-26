@@ -83,7 +83,8 @@ app_include_js = "/assets/hns_ai_assistant_app/js/ai_assistant.js"
 # ------------
 
 # before_install = "hns_ai_assistant_app.install.before_install"
-# after_install = "hns_ai_assistant_app.install.after_install"
+after_install = "hns_ai_assistant_app.setup_navbar.execute"
+after_migrate = "hns_ai_assistant_app.setup_navbar.execute"
 
 # Uninstallation
 # ------------

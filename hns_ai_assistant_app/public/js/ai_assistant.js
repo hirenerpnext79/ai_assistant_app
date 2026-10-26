@@ -34,7 +34,6 @@ hns_ai_assistant_app.Assistant = {
 
                 this.setup_ui();
                 this.bind_events();
-                this.setup_menu_item();
                 
                 if (this.allowed_providers.length === 0) {
                     this.input.disabled = true;
@@ -471,21 +470,6 @@ hns_ai_assistant_app.Assistant = {
 
         this.messages.appendChild(wrapper);
         this.messages.scrollTop = this.messages.scrollHeight;
-    },
-
-    setup_menu_item: function () {
-        if ($("#toolbar-help").length) {
-            $("#toolbar-help").append(`
-                <button class="btn-reset dropdown-item" id="ask-akansha-menu-item">
-                    ${CHATBOT_LABEL}
-                </button>
-            `);
-            $("#ask-akansha-menu-item").on("click", () => {
-                document.getElementById("ask-akansha-btn").classList.add("visible");
-                this.panel.classList.add("active");
-                this.input.focus();
-            });
-        }
     }
 };
 

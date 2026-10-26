@@ -22,10 +22,8 @@ class BaseAIService:
                 "user_query": user_query,
                 "ai_response": ai_response,
                 "erpnext_context": 1 if frappe.utils.cint(erpnext_context) else 0,
-                "response_data": json.dumps(response_data) if response_data else None,
                 "ai_api_response": api_response,
-                "usage_details": usage_details,
-                "prompt": prompt
+                "usage_details": usage_details
             })
             doc.insert(ignore_permissions=True)
             frappe.db.commit()
