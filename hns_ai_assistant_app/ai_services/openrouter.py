@@ -38,14 +38,15 @@ class OpenRouterService(BaseAIService):
             current_turn = 0
             final_content = ""
             total_usage = {}
+            logged_function_calls = []
+            logged_function_responses = []
         
             while current_turn < max_turns:
                 current_turn += 1
             
                 payload = {
                     "model": self.model,
-                    "messages": messages,
-                    "max_tokens": self.provider_doc.get("max_tokens") or 2048
+                    "messages": messages
                 }
                 if tools:
                     payload["tools"] = tools
@@ -86,6 +87,15 @@ class OpenRouterService(BaseAIService):
                         if isinstance(tool_result, dict) and "error" in tool_result:
                             return tool_result["error"]
                         
+                        logged_function_calls.append({
+                            "name": function_name,
+                            "args": args
+                        })
+                        logged_function_responses.append({
+                            "name": function_name,
+                            "response": tool_result if isinstance(tool_result, dict) else {"result": tool_result}
+                        })
+                        
                         messages.append({
                             "role": "tool",
                             "tool_call_id": tool_call['id'],
@@ -96,14 +106,23 @@ class OpenRouterService(BaseAIService):
                     break
                     
             log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
-            prompt_log = json.dumps(messages, indent=2)
-            usage_details = json.dumps(total_usage)
+            prompt_log = json.dumps(messages, indent=4)
+            usage_details = json.dumps(total_usage, indent=4)
+
+            if not final_content and tools_manager.captured_data:
+                final_content = self.format_captured_data(tools_manager.captured_data)
+
+            api_log = {}
+            if logged_function_calls:
+                api_log = {
+                    "functionCall": logged_function_calls if len(logged_function_calls) > 1 else logged_function_calls[0]
+                }
             
             self.log_interaction(
                 user_query=user_message,
                 ai_response=final_content,
                 response_data=log_data,
-                api_response=None,
+                api_response=json.dumps(api_log, indent=4) if api_log else "",
                 usage_details=usage_details,
                 prompt=prompt_log,
                 erpnext_context=enable_context

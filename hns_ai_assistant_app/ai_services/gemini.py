@@ -38,9 +38,6 @@ class GeminiService(BaseAIService):
             "contents": [{"role": "user", "parts": [{"text": f"{prompt}\n\nDocument Text:\n{text}"}]}],
             "generationConfig": {"responseMimeType": "application/json"}
         }
-        if self.max_tokens:
-            payload["generationConfig"]["maxOutputTokens"] = int(self.max_tokens)
-
         try:
             data = self._execute_api_call(payload)
             response_text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -69,45 +66,53 @@ class GeminiService(BaseAIService):
             "generationConfig": {"temperature": 0.7}
         }
         
-        if self.max_tokens:
-            payload["generationConfig"]["maxOutputTokens"] = int(self.max_tokens)
         if tools:
             payload["tools"] = tools
 
-        try:
-            data = self._execute_api_call(payload)
-            parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-            function_calls = [p["functionCall"] for p in parts if "functionCall" in p]
+        max_turns = 4
+        current_turn = 0
+        all_function_calls = []
+        response_text = ""
 
-            if function_calls:
-                contents.append({"role": "model", "parts": parts})
-                function_responses = []
-                
-                for func_call in function_calls:
-                    result = self._execute_tool(
-                        function_name=func_call["name"],
-                        args=func_call.get("args", {}),
-                        tools_manager=tools_manager,
-                        messages_for_logging=payload,
-                        enable_context=enable_context,
-                        user_query=message
-                    )
-                    
-                    if isinstance(result, dict) and "error" in result:
-                        return result["error"]
-                        
-                    function_responses.append({
-                        "functionResponse": {
-                            "name": func_call["name"],
-                            "response": result if isinstance(result, dict) else {"result": result}
-                        }
-                    })
-                    
-                contents.append({"role": "user", "parts": function_responses})
+        try:
+            while current_turn < max_turns:
+                current_turn += 1
                 data = self._execute_api_call(payload)
                 parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                function_calls = [p["functionCall"] for p in parts if "functionCall" in p]
 
-            response_text = "".join([p["text"] for p in parts if "text" in p])
+                if function_calls:
+                    all_function_calls.extend(function_calls)
+                    contents.append({"role": "model", "parts": parts})
+                    function_responses = []
+                    
+                    for func_call in function_calls:
+                        result = self._execute_tool(
+                            function_name=func_call["name"],
+                            args=func_call.get("args", {}),
+                            tools_manager=tools_manager,
+                            messages_for_logging=payload,
+                            enable_context=enable_context,
+                            user_query=message
+                        )
+                        
+                        if isinstance(result, dict) and "error" in result:
+                            return result["error"]
+                            
+                        function_responses.append({
+                            "functionResponse": {
+                                "name": func_call["name"],
+                                "response": result if isinstance(result, dict) else {"result": result}
+                            }
+                        })
+                        
+                    contents.append({"role": "user", "parts": function_responses})
+                else:
+                    response_text = "".join([p["text"] for p in parts if "text" in p])
+                    break
+
+            if not response_text and tools_manager.captured_data:
+                response_text = self.format_captured_data(tools_manager.captured_data)
             
             usage_metadata = data.get("usageMetadata", {})
             usage_details = {
@@ -117,14 +122,20 @@ class GeminiService(BaseAIService):
             } if usage_metadata else {}
 
             log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
-            prompt_log = json.dumps(payload, indent=2)
+            prompt_log = json.dumps(payload, indent=4)
+
+            api_log = {}
+            if all_function_calls:
+                api_log = {
+                    "functionCall": all_function_calls if len(all_function_calls) > 1 else all_function_calls[0]
+                }
             
             self.log_interaction(
                 user_query=message,
                 ai_response=response_text,
                 response_data=log_data,
-                api_response=json.dumps(data),
-                usage_details=json.dumps(usage_details) if usage_details else None,
+                api_response=json.dumps(api_log, indent=4) if api_log else "",
+                usage_details=json.dumps(usage_details, indent=4) if usage_details else None,
                 prompt=prompt_log,
                 erpnext_context=enable_context
             )

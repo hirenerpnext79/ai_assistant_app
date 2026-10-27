@@ -12,7 +12,6 @@
   "api_key",
   "base_url",
   "model",
-  "max_tokens",
   "status",
   "column_break_yokr",
   "hns_ai_assistant_role",
@@ -85,13 +84,6 @@
    "label": "System Info"
   },
   {
-   "default": "2048",
-   "description": "Maximum tokens for the AI generation.",
-   "fieldname": "max_tokens",
-   "fieldtype": "Int",
-   "label": "Max Tokens"
-  },
-  {
    "description": "Select specific role for access this AI provider.",
    "fieldname": "hns_ai_assistant_role",
    "fieldtype": "Table MultiSelect",
@@ -120,7 +112,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-30 10:35:40.305642",
+ "modified": "2026-10-27 10:44:56.847424",
  "modified_by": "Administrator",
  "module": "HNS AI Assistant App",
  "name": "Hns AI Assistant Provider",
