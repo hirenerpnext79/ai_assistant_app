@@ -286,3 +286,20 @@ def get_all_allowed_doctypes(provider_doc):
     print(allowed)
     return list(allowed)
 
+
+
+@frappe.whitelist()
+def get_report_prompts(report_name):
+    if not report_name:
+        return []
+    try:
+        return frappe.get_all(
+            "HNS AI Assistant App Prompt",
+            filters={"report": report_name, "is_active": 1},
+            fields=["name", "report", "prompt"],
+            order_by="creation asc",
+            ignore_permissions=True,
+        )
+    except Exception as e:
+        frappe.log_error(title="get_report_prompts Error", message=str(e))
+        return []
