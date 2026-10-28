@@ -43,19 +43,14 @@ class ERPNextTools:
         try:
             self._check_doctype_access(doctype)
 
-            # ---------------------------------------------------------
-            # Get actual DocType metadata
-            # ---------------------------------------------------------
             meta = frappe.get_meta(doctype)
 
-            # Actual database fields
             valid_fields = {
                 df.fieldname
                 for df in meta.fields
                 if df.fieldname
             }
 
-            # Standard document fields available in Frappe
             valid_fields.update({
                 "name",
                 "owner",
@@ -66,15 +61,11 @@ class ERPNextTools:
                 "idx"
             })
 
-            # ---------------------------------------------------------
-            # Validate requested fields
-            # ---------------------------------------------------------
             if not fields:
                 raise ValueError(
                     f"No fields specified for DocType '{doctype}'."
                 )
 
-            # Allow ["*"]
             if fields == ["*"]:
                 safe_fields = ["*"]
             else:
@@ -92,11 +83,7 @@ class ERPNextTools:
 
                 safe_fields = fields
 
-            # ---------------------------------------------------------
-            # Validate sum field
-            # ---------------------------------------------------------
             if operation == "sum":
-
                 if not sum_field:
                     raise ValueError(
                         "sum_field is required when operation='sum'."
@@ -109,9 +96,6 @@ class ERPNextTools:
                         f"Available fields: {sorted(valid_fields)}"
                     )
 
-            # ---------------------------------------------------------
-            # Validate filters
-            # ---------------------------------------------------------
             parsed_filters = self._parse_filters(filters)
 
             self._validate_filter_fields(
@@ -120,30 +104,19 @@ class ERPNextTools:
                 doctype
             )
 
-            # ---------------------------------------------------------
-            # Validate order_by
-            # ---------------------------------------------------------
             safe_order_by = self._validate_order_by(
                 order_by,
                 valid_fields,
                 doctype
             )
 
-            # ---------------------------------------------------------
-            # Single DocType
-            # ---------------------------------------------------------
             if meta.issingle:
-
                 data = self._query_single_doctype(
                     doctype,
                     safe_fields
                 )
 
-            # ---------------------------------------------------------
-            # Count
-            # ---------------------------------------------------------
             elif operation == "count":
-
                 count = frappe.db.count(
                     doctype,
                     filters=parsed_filters
@@ -155,39 +128,30 @@ class ERPNextTools:
                     }
                 ]
 
-            # ---------------------------------------------------------
-            # Sum
-            # ---------------------------------------------------------
             elif operation == "sum":
-
                 data = self._query_sum(
                     doctype,
                     parsed_filters,
                     sum_field
                 )
 
-            # ---------------------------------------------------------
-            # List
-            # ---------------------------------------------------------
             else:
+                safe_limit = frappe.utils.cint(limit) if limit is not None else None
+                safe_offset = frappe.utils.cint(offset) if offset is not None else 0
 
                 query_args = {
                     "doctype": doctype,
                     "filters": parsed_filters,
                     "fields": safe_fields,
                     "order_by": safe_order_by,
-                    "limit_page_length": limit or 0,
+                    "limit_page_length": safe_limit or 0,
                 }
 
-                # Pagination
-                if offset:
-                    query_args["limit_start"] = offset
+                if safe_offset:
+                    query_args["limit_start"] = safe_offset
 
                 data = frappe.get_all(**query_args)
 
-            # ---------------------------------------------------------
-            # Convert Frappe objects to JSON-safe data
-            # ---------------------------------------------------------
             data = json.loads(
                 frappe.as_json(data)
             )
@@ -203,7 +167,6 @@ class ERPNextTools:
             }
 
         except Exception as e:
-
             error_msg = str(e)
 
             self.captured_data.append({
@@ -221,95 +184,72 @@ class ERPNextTools:
         valid_fields,
         doctype
     ):
-        """
-        Make sure the AI never sends a filter
-        using a field that does not exist.
-        """
-
         if not filters:
             return
 
-        # Dictionary format
         if isinstance(filters, dict):
-
             for field in filters.keys():
-
                 if field not in valid_fields:
-
                     raise ValueError(
                         f"Invalid filter field '{field}' "
                         f"for DocType '{doctype}'. "
                         f"Available fields: {sorted(valid_fields)}"
                     )
-
             return
 
-        # List format:
-        #
-        # [
-        #   ["employee_name", "=", "Riddhi"],
-        #   ["attendance_date", ">=", "2026-08-31"]
-        # ]
-        #
         if isinstance(filters, list):
-
             for condition in filters:
-
                 if not isinstance(condition, (list, tuple)):
                     continue
 
                 if len(condition) >= 1:
-
                     field = condition[0]
-
                     if field not in valid_fields:
-
                         raise ValueError(
                             f"Invalid filter field '{field}' "
                             f"for DocType '{doctype}'. "
                             f"Available fields: {sorted(valid_fields)}"
                         )
 
-    def _validate_order_by(
-        self,
-        order_by,
-        valid_fields,
-        doctype
-    ):
-        """
-        Prevent the AI from generating ORDER BY
-        using a nonexistent field.
-        """
-
+    def _validate_order_by(self, order_by, valid_fields, doctype):
         if not order_by:
             return None
 
-        parts = order_by.strip().split()
+        cleaned_clauses = []
+        raw_clauses = [c.strip() for c in str(order_by).split(",") if c.strip()]
 
-        field = parts[0]
+        for clause in raw_clauses:
+            tokens = clause.strip().split()
+            if not tokens:
+                continue
 
-        if field not in valid_fields:
+            last_token_clean = tokens[-1].strip("` \t\r\n,;.").lower()
+            direction = ""
 
-            raise ValueError(
-                f"Invalid order_by field '{field}' "
-                f"for DocType '{doctype}'. "
-                f"Available fields: {sorted(valid_fields)}"
-            )
-
-        direction = ""
-
-        if len(parts) > 1:
-
-            direction = parts[1].lower()
-
-            if direction not in ("asc", "desc"):
-
+            if last_token_clean in ("desc", "descending", "decending"):
+                direction = "desc"
+                field_expr = " ".join(tokens[:-1]) if len(tokens) > 1 else ""
+            elif last_token_clean in ("asc", "ascending"):
+                direction = "asc"
+                field_expr = " ".join(tokens[:-1]) if len(tokens) > 1 else ""
+            elif len(tokens) > 1:
                 raise ValueError(
-                    f"Invalid order direction '{direction}'. "
-                    f"Use 'asc' or 'desc'."
+                    f"Invalid order direction '{tokens[-1]}'. Use 'asc' or 'desc'."
+                )
+            else:
+                field_expr = tokens[0]
+
+            field = field_expr.strip("` \t\r\n").split(".")[-1].strip("`")
+
+            if not field or field not in valid_fields:
+                raise ValueError(
+                    f"Invalid order_by field '{field or field_expr}' for DocType '{doctype}'. "
+                    f"Available fields: {sorted(valid_fields)}"
                 )
 
-        return f"{field} {direction}".strip()
+            cleaned_clauses.append(f"{field} {direction}".strip())
+
+        return ", ".join(cleaned_clauses) if cleaned_clauses else None
 
     def get_system_prompt(self, provider_doc=None):
         try:
@@ -319,6 +259,28 @@ class ERPNextTools:
             
             prompt = prompt.replace('{doctype_list_str}', doctypes)
             prompt = prompt.replace('{today_date}', today_date)
+
+            limit_rule = (
+                "\n\n==================================================\n"
+                "LIMIT, RANKING & TOP N QUERY RULES\n"
+                "==================================================\n"
+                "1. If the user specifies a number or limit (e.g. 'top 10', '10 Sales Invoice Party', 'first 5', 'limit 10'):\n"
+                "   - You MUST set `limit` to that exact number (e.g. 10) in `query_erpnext_data`.\n"
+                "   - All queries for that request must only use that limit.\n"
+                "   - NEVER query a larger limit (such as 100 or 1000), do NOT query count, and NEVER paginate (offset) to fetch all records.\n"
+                "   - Run ONLY the single query with `limit: N` and answer immediately from the returned data.\n\n"
+                "2. SORTING & ORDER BY:\n"
+                "   - For 'top N', 'highest', 'most', or descending queries: ALWAYS set `order_by` in descending mode (e.g. `order_by='grand_total desc'`).\n"
+                "   - Check user query words for sorting direction:\n"
+                "     * If 'ascending', 'asc', 'lowest', 'bottom': use 'asc' (e.g. `order_by='grand_total asc'`).\n"
+                "     * If 'descending', 'desc', 'highest', 'top': use 'desc' (e.g. `order_by='grand_total desc'`).\n"
+                "   - In `order_by`, strictly use only 'asc' or 'desc'. Never add trailing commas (do NOT write 'desc,').\n\n"
+                "3. AGGREGATED DATA FETCH (WHEN NO LIMIT IS REQUESTED):\n"
+                "   - If the user did NOT ask for a limit or specific count (e.g. total sales, total count, overall summary across all data):\n"
+                "   - THEN fetch all data or use operation 'count' or 'sum' to calculate the full aggregation and give the response.\n"
+            )
+            if "LIMIT, RANKING & TOP N QUERY RULES" not in prompt:
+                prompt += limit_rule
 
             if doctypes and doctypes != "All ERPNext DocTypes" and not doctypes.startswith("None"):
                 doctypes_br = "<br>".join(doctypes.split("\n"))
