@@ -68,13 +68,15 @@ class BaseAIService:
 
             if isinstance(records, list) and len(records) > 0 and isinstance(records[0], dict):
                 headers = list(records[0].keys())
-                header_html = "".join(
+                num_th = "<th style='padding: 9px 14px; font-weight: 600; font-size: 11.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #cbd5e1; background: #f8fafc; white-space: nowrap !important; word-break: normal !important; position: sticky; top: 0; width: 40px;'>#</th>"
+                header_html = num_th + "".join(
                     f"<th style='padding: 9px 14px; font-weight: 600; font-size: 11.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #cbd5e1; background: #f8fafc; white-space: nowrap !important; word-break: normal !important; position: sticky; top: 0;'>{h.replace('_', ' ').title()}</th>"
                     for h in headers
                 )
                 rows_html = []
-                for r in records:
-                    cells = "".join(
+                for idx, r in enumerate(records, 1):
+                    num_td = f"<td style='padding: 9px 14px; color: #64748b; font-weight: 600; border-bottom: 1px solid #f1f5f9; white-space: nowrap !important; word-break: normal !important;'>{idx}</td>"
+                    cells = num_td + "".join(
                         f"<td style='padding: 9px 14px; color: #1e293b; border-bottom: 1px solid #f1f5f9; white-space: nowrap !important; word-break: normal !important;'>{str(r.get(h, '')) if r.get(h) is not None else ''}</td>"
                         for h in headers
                     )

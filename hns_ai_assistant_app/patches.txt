@@ -3,3 +3,4 @@ hns_ai_assistant_app.patches.v1_0.alter_hns_akansha_log_name_column
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
+hns_ai_assistant_app.patches.v1_0.create_default_ai_rules

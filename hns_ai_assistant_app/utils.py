@@ -253,50 +253,12 @@ class ERPNextTools:
 
     def get_system_prompt(self, provider_doc=None):
         try:
-            doctypes = self._get_doctype_list_str(provider_doc)
-            prompt = provider_doc.system_prompt if provider_doc and provider_doc.system_prompt else ""
-            today_date = today()
-            
-            prompt = prompt.replace('{doctype_list_str}', doctypes)
-            prompt = prompt.replace('{today_date}', today_date)
-
-            limit_rule = (
-                "\n\n==================================================\n"
-                "LIMIT, RANKING & TOP N QUERY RULES\n"
-                "==================================================\n"
-                "1. If the user specifies a number or limit (e.g. 'top 10', '10 Sales Invoice Party', 'first 5', 'limit 10'):\n"
-                "   - You MUST set `limit` to that exact number (e.g. 10) in `query_erpnext_data`.\n"
-                "   - All queries for that request must only use that limit.\n"
-                "   - NEVER query a larger limit (such as 100 or 1000), do NOT query count, and NEVER paginate (offset) to fetch all records.\n"
-                "   - Run ONLY the single query with `limit: N` and answer immediately from the returned data.\n\n"
-                "2. SORTING & ORDER BY:\n"
-                "   - For 'top N', 'highest', 'most', or descending queries: ALWAYS set `order_by` in descending mode (e.g. `order_by='grand_total desc'`).\n"
-                "   - Check user query words for sorting direction:\n"
-                "     * If 'ascending', 'asc', 'lowest', 'bottom': use 'asc' (e.g. `order_by='grand_total asc'`).\n"
-                "     * If 'descending', 'desc', 'highest', 'top': use 'desc' (e.g. `order_by='grand_total desc'`).\n"
-                "   - In `order_by`, strictly use only 'asc' or 'desc'. Never add trailing commas (do NOT write 'desc,').\n\n"
-                "3. AGGREGATED DATA FETCH (WHEN NO LIMIT IS REQUESTED):\n"
-                "   - If the user did NOT ask for a limit or specific count (e.g. total sales, total count, overall summary across all data):\n"
-                "   - THEN fetch all data or use operation 'count' or 'sum' to calculate the full aggregation and give the response.\n"
+            from hns_ai_assistant_app.hns_ai_assistant_app.doctype.hns_ai_assistant_rule.hns_ai_assistant_rule import (
+                get_active_rules,
             )
-            if "LIMIT, RANKING & TOP N QUERY RULES" not in prompt:
-                prompt += limit_rule
-
-            if doctypes and doctypes != "All ERPNext DocTypes" and not doctypes.startswith("None"):
-                doctypes_br = "<br>".join(doctypes.split("\n"))
-                rule = (
-                    "\n\n==================================================\n"
-                    "ACCESSIBLE DOCTYPES RESTRICTION\n"
-                    "==================================================\n"
-                    "You only have permission to access the Available DocTypes listed above.\n"
-                    "If the user asks for data, records, lists, counts, or information about any DocType that is NOT in the Available DocTypes list (such as Customer, Sales Invoice, etc.), you must NOT query external databases, you must NOT invent records, write SQL, or offer generic sample data.\n"
-                    "You must respond strictly in this exact format with a new line (<br>) for each DocType:\n\n"
-                    "The {DocType} DocType is not available among the accessible DocTypes. The available DocTypes are:<br><br>"
-                    f"{doctypes_br}\n"
-                )
-                prompt += rule
-
-            return prompt
+            doctypes = self._get_doctype_list_str(provider_doc)
+            today_date = today()
+            return get_active_rules(doctypes=doctypes, today_date=today_date)
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: get_system_prompt error")
             return "You are a helpful assistant."
