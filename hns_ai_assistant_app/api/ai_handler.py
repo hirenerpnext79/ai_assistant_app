@@ -10,7 +10,6 @@ PROVIDER_CLASSES = {
 
 
 def _log_early_exit(user_query, response_message, enable_context=None):
-    """Store a log entry when the request exits before reaching an AI provider."""
     try:
         doc = frappe.get_doc({
             "doctype": "Hns Akansha Log",
@@ -36,23 +35,24 @@ def ask_akansha(message, context=None, enable_context=None, provider_name=None):
     provider_doc = _get_and_validate_provider(provider_name, message, enable_context)
     if isinstance(provider_doc, str):
         return provider_doc
-        
+
     success, context_result, current_doctype = _validate_and_get_context(provider_doc, context, enable_context, message)
     if not success:
         return context_result
     enable_context = context_result
-    
+
     if not _validate_api_key(provider_doc, message, enable_context):
-        msg = _("API Key is missing or masked as asterisks for {0}. Please re-enter it in settings.").format(provider_doc.name)
-        return msg
+        return _("API Key is missing or masked as asterisks for {0}. Please re-enter it in settings.").format(provider_doc.name)
 
     return process_ai_request(provider_doc, message, enable_context)
+
 
 def _check_app_permission(message, enable_context=None):
     if not frappe.has_permission("Hns AI Assistant App Setting", "read"):
         _log_early_exit(message, _("You do not have permission to use the AI Assistant."), enable_context)
         return False
     return True
+
 
 def _get_and_validate_provider(provider_name, message, enable_context=None):
     if not provider_name:
@@ -71,14 +71,15 @@ def _get_and_validate_provider(provider_name, message, enable_context=None):
         msg = _("You do not have permission to use the selected AI provider.")
         _log_early_exit(message, msg, enable_context)
         return msg
-        
+
     return provider_doc
+
 
 def _validate_and_get_context(provider_doc, context, enable_context, message):
     current_doctype = None
     if context:
         context_dict = frappe.parse_json(context) if isinstance(context, str) else context
-        route = context_dict.get("route")
+        route = context_dict.get("route") if isinstance(context_dict, dict) else None
 
         if route and isinstance(route, list) and len(route) >= 2 and route[0] in ("Form", "List", "Tree"):
             current_doctype = route[1]
@@ -87,10 +88,9 @@ def _validate_and_get_context(provider_doc, context, enable_context, message):
         if not is_allowed:
             _log_early_exit(message, msg, enable_context)
             return False, msg, current_doctype
-        if msg == "disable_context":
-            return True, 0, current_doctype
-            
+
     return True, enable_context, current_doctype
+
 
 def _validate_api_key(provider_doc, message, enable_context=None):
     if not is_valid_api_key(provider_doc.get_password("api_key")):
@@ -183,15 +183,15 @@ def process_ai_request(provider_doc, message, enable_context=None):
         return service_instance.generate_response(message, enable_context)
     except Exception as e:
         frappe.log_error(title="AI API Error", message=str(e))
-        
+
         if "API Error" in str(e):
             error_msg = str(e)
         else:
             error_msg = _("An error occurred while contacting the AI provider: {0}").format(str(e))
-        
+
         if not service_instance:
             _log_early_exit(message, error_msg, enable_context)
-            
+
         return error_msg
 
 
@@ -211,78 +211,93 @@ def get_chat_history():
     return logs
 
 
-def check_doctype_permission(provider_doc, doctype=None):
-    if doctype and not frappe.db.exists("DocType", doctype):
-        return False, _("DocType {0} does not exist.").format(doctype)
-    
-    user = frappe.session.user
-    if user == "Administrator":
-        return True, ""
-
+def get_matching_permissions_for_user(provider_doc, user=None):
+    user = user or frappe.session.user
     provider_permissions = provider_doc.get("hns_ai_doctype_permission")
     if not provider_permissions:
-        return False, _("No permissions have been configured for you to access ERPNext data.")
+        return None
 
-    roles = frappe.get_roles(user)
-    
+    roles = set(frappe.get_roles(user))
+    matching_permissions = []
+
     for row in provider_permissions:
         perm_name = row.hns_ai_doctype_permission
         if not perm_name:
             continue
-            
-        perm_doc = frappe.get_doc("Hns AI Assistant Permission", perm_name)
-        
-        user_match = False
-        if not perm_doc.hns_ai_assistant_user and not perm_doc.hns_ai_assistant_role:
-            user_match = True
-        elif any(u.user == user for u in perm_doc.hns_ai_assistant_user):
-            user_match = True
-        elif any(r.role in roles for r in perm_doc.hns_ai_assistant_role):
-            user_match = True
-            
-        if user_match:
-            if not doctype:
-                return True, ""
-            if not perm_doc.allowed_doctypes:
-                return True, ""
-            if any(d.document_type == doctype for d in perm_doc.allowed_doctypes):
-                return True, ""
 
-    return False, _('You do not have permission to access {0}').format(doctype or 'the AI Assistant')
+        perm_doc = frappe.get_doc("Hns AI Assistant Permission", perm_name)
+
+        if not perm_doc.hns_ai_assistant_user and not perm_doc.hns_ai_assistant_role:
+            matching_permissions.append(perm_doc)
+        elif any(u.user == user for u in perm_doc.hns_ai_assistant_user):
+            matching_permissions.append(perm_doc)
+        elif any(r.role in roles for r in perm_doc.hns_ai_assistant_role):
+            matching_permissions.append(perm_doc)
+
+    return matching_permissions
+
+
+def check_doctype_permission(provider_doc, doctype=None):
+    user = frappe.session.user
+    matching_permissions = get_matching_permissions_for_user(provider_doc, user)
+
+    if matching_permissions is None:
+        if doctype and not frappe.db.exists("DocType", doctype):
+            return False, _("DocType {0} does not exist.").format(doctype)
+        if doctype and user != "Administrator" and not frappe.has_permission(doctype, "read", user=user):
+            return False, _("You do not have permission to access {0} in ERPNext.").format(doctype)
+        return True, ""
+
+    if not matching_permissions:
+        return False, _("No DocTypes are available for your user or role via this AI provider.")
+
+    if not doctype:
+        return True, ""
+
+    allowed_doctypes = set()
+    for perm_doc in matching_permissions:
+        if not perm_doc.allowed_doctypes:
+            if not frappe.db.exists("DocType", doctype):
+                return False, _("DocType {0} does not exist.").format(doctype)
+            if user != "Administrator" and not frappe.has_permission(doctype, "read", user=user):
+                return False, _("You do not have permission to access {0} in ERPNext.").format(doctype)
+            return True, ""
+
+        for row in perm_doc.allowed_doctypes:
+            if row.document_type:
+                allowed_doctypes.add(row.document_type)
+
+    if doctype in allowed_doctypes:
+        if not frappe.db.exists("DocType", doctype):
+            return False, _("DocType {0} does not exist.").format(doctype)
+        if user != "Administrator" and not frappe.has_permission(doctype, "read", user=user):
+            return False, _("You do not have permission to access {0} in ERPNext.").format(doctype)
+        return True, ""
+
+    if allowed_doctypes:
+        available_list = "<br>".join(sorted(allowed_doctypes))
+        return False, _("The {0} DocType is not available among the accessible DocTypes. The available DocTypes are:<br><br>{1}").format(doctype, available_list)
+
+    return False, _("No DocTypes are currently available among the accessible DocTypes.")
 
 
 def get_all_allowed_doctypes(provider_doc):
     user = frappe.session.user
-    if user == "Administrator":
+    matching_permissions = get_matching_permissions_for_user(provider_doc, user)
+
+    if matching_permissions is None:
         return ["*"]
 
-    provider_permissions = provider_doc.get("hns_ai_doctype_permission")
-    if not provider_permissions:
+    if not matching_permissions:
         return []
 
-    roles = frappe.get_roles(user)
-    allowed = set()
+    allowed_doctypes = set()
+    for perm_doc in matching_permissions:
+        if not perm_doc.allowed_doctypes:
+            return ["*"]
 
-    for row in provider_permissions:
-        perm_name = row.hns_ai_doctype_permission
-        if not perm_name:
-            continue
+        for row in perm_doc.allowed_doctypes:
+            if row.document_type:
+                allowed_doctypes.add(row.document_type)
 
-        perm_doc = frappe.get_doc("Hns AI Assistant Permission", perm_name)
-
-        user_match = False
-        if not perm_doc.hns_ai_assistant_user and not perm_doc.hns_ai_assistant_role:
-            user_match = True
-        elif any(u.user == user for u in perm_doc.hns_ai_assistant_user):
-            user_match = True
-        elif any(r.role in roles for r in perm_doc.hns_ai_assistant_role):
-            user_match = True
-
-        if user_match:
-            if not perm_doc.allowed_doctypes:
-                return ["*"]
-            for d in perm_doc.allowed_doctypes:
-                allowed.add(d.document_type)
-    print(allowed)
-    return list(allowed)
-
+    return sorted(list(allowed_doctypes))

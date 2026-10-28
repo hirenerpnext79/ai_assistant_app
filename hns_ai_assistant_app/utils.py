@@ -312,14 +312,32 @@ class ERPNextTools:
         return f"{field} {direction}".strip()
 
     def get_system_prompt(self, provider_doc=None):
-        doctypes = self._get_doctype_list_str(provider_doc)
-        prompt = provider_doc.system_prompt if provider_doc and provider_doc.system_prompt else ""
-        today_date = today()
-        
-        prompt = prompt.replace('{doctype_list_str}', doctypes)
-        prompt = prompt.replace('{today_date}', today_date)
-        
-        return prompt
+        try:
+            doctypes = self._get_doctype_list_str(provider_doc)
+            prompt = provider_doc.system_prompt if provider_doc and provider_doc.system_prompt else ""
+            today_date = today()
+            
+            prompt = prompt.replace('{doctype_list_str}', doctypes)
+            prompt = prompt.replace('{today_date}', today_date)
+
+            if doctypes and doctypes != "All ERPNext DocTypes" and not doctypes.startswith("None"):
+                doctypes_br = "<br>".join(doctypes.split("\n"))
+                rule = (
+                    "\n\n==================================================\n"
+                    "ACCESSIBLE DOCTYPES RESTRICTION\n"
+                    "==================================================\n"
+                    "You only have permission to access the Available DocTypes listed above.\n"
+                    "If the user asks for data, records, lists, counts, or information about any DocType that is NOT in the Available DocTypes list (such as Customer, Sales Invoice, etc.), you must NOT query external databases, you must NOT invent records, write SQL, or offer generic sample data.\n"
+                    "You must respond strictly in this exact format with a new line (<br>) for each DocType:\n\n"
+                    "The {DocType} DocType is not available among the accessible DocTypes. The available DocTypes are:<br><br>"
+                    f"{doctypes_br}\n"
+                )
+                prompt += rule
+
+            return prompt
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: get_system_prompt error")
+            return "You are a helpful assistant."
 
     def _check_doctype_access(self, doctype: str):
         from hns_ai_assistant_app.api.ai_handler import check_doctype_permission
@@ -380,6 +398,7 @@ class ERPNextTools:
             if "*" in allowed_doctypes:
                 return "All ERPNext DocTypes"
                 
-            return ", ".join(sorted(allowed_doctypes))
+            return "\n".join(sorted(allowed_doctypes))
         except Exception as e:
+            frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: _get_doctype_list_str error")
             return f"Error retrieving doctypes: {str(e)}"

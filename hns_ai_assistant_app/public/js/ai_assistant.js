@@ -433,6 +433,76 @@ hns_ai_assistant_app.Assistant = {
         });
     },
 
+    format_markdown_tables: function (text) {
+        if (!text || text.indexOf("|") === -1) return text;
+
+        let normalized = text.replace(/\|\|\s*\|/g, "|\n|");
+        normalized = normalized.replace(/\|\|\s*([^\s|])/g, "|\n|$1");
+
+        const table_regex = /((?:\|[^\n\r]+\|\r?\n?)+)/g;
+        return normalized.replace(table_regex, function (match) {
+            const lines = match.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith("|") && l.endsWith("|"));
+            if (lines.length < 2) return match;
+            const is_sep = /^\|[\s\-:|]+\|$/.test(lines[1]);
+            if (!is_sep) return match;
+
+            const parse_cells = (row) => row.slice(1, -1).split("|").map(c => c.trim());
+            const headers = parse_cells(lines[0]);
+            const header_html = headers.map(h => `<th style="padding: 9px 14px; font-weight: 600; font-size: 11.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #cbd5e1; background: #f8fafc; white-space: nowrap !important; word-break: normal !important; position: sticky; top: 0;">${h}</th>`).join("");
+
+            const rows_html = [];
+            for (let i = 2; i < lines.length; i++) {
+                const cells = parse_cells(lines[i]);
+                if (cells.length === 0 || (cells.length === 1 && cells[0] === "")) continue;
+                const row_cells = cells.map(c => `<td style="padding: 9px 14px; color: #1e293b; border-bottom: 1px solid #f1f5f9; white-space: nowrap !important; word-break: normal !important;">${c}</td>`).join("");
+                rows_html.push(`<tr>${row_cells}</tr>`);
+            }
+
+            return `\n<div class="aak-table-container" style="margin: 8px 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; width: 100%; max-width: 100%; min-width: 0;"><div class="aak-table-scroll" style="width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; display: block;"><table class="aak-data-table" style="width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.5; text-align: left; table-layout: auto; margin: 0;"><thead><tr>${header_html}</tr></thead><tbody>${rows_html.join("")}</tbody></table></div></div>\n`;
+        });
+    },
+
+    render_markdown: function (text) {
+        if (!text) return "";
+
+        if (typeof showdown !== "undefined") {
+            try {
+                showdown.setOption("tables", true);
+                showdown.setOption("simpleLineBreaks", true);
+            } catch (e) {}
+        }
+
+        let processed = this.format_markdown_tables(text);
+        let html = typeof frappe.markdown !== "undefined" ? frappe.markdown(processed) : processed;
+
+        const temp = document.createElement("div");
+        temp.innerHTML = html;
+        const tables = temp.querySelectorAll("table");
+        tables.forEach((table) => {
+            if (!table.parentElement || !table.parentElement.classList.contains("aak-table-scroll")) {
+                const container = document.createElement("div");
+                container.className = "aak-table-container";
+                container.style.cssText = "margin: 8px 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; width: 100%; max-width: 100%; min-width: 0;";
+                const wrapper = document.createElement("div");
+                wrapper.className = "aak-table-scroll";
+                wrapper.style.cssText = "width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; display: block;";
+                table.classList.add("aak-data-table");
+                table.style.cssText = "width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.5; text-align: left; table-layout: auto; margin: 0;";
+                table.querySelectorAll("th").forEach(th => {
+                    th.style.cssText = "padding: 9px 14px; font-weight: 600; font-size: 11.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #cbd5e1; background: #f8fafc; white-space: nowrap !important; word-break: normal !important; position: sticky; top: 0;";
+                });
+                table.querySelectorAll("td").forEach(td => {
+                    td.style.cssText = "padding: 9px 14px; color: #1e293b; border-bottom: 1px solid #f1f5f9; white-space: nowrap !important; word-break: normal !important;";
+                });
+                table.parentNode.insertBefore(container, table);
+                container.appendChild(wrapper);
+                wrapper.appendChild(table);
+            }
+        });
+
+        return temp.innerHTML;
+    },
+
     add_message_to_dom: function (text, sender, creation = null) {
         if (!text) return;
 
@@ -455,7 +525,11 @@ hns_ai_assistant_app.Assistant = {
         const content_div = document.createElement("div");
         content_div.className = "msg-content";
         if (sender === "akansha") {
-            content_div.innerHTML = typeof frappe.markdown !== "undefined" ? frappe.markdown(text) : text;
+            content_div.innerHTML = this.render_markdown(text);
+            if (content_div.querySelector(".aak-table-container, .aak-table-scroll, table")) {
+                bubble.classList.add("has-table");
+                wrapper.classList.add("has-table");
+            }
         } else {
             content_div.textContent = text;
         }
