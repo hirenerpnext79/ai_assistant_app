@@ -1,15 +1,18 @@
 {
  "actions": [],
- "autoname": "autoincrement",
+ "autoname": "naming_series:",
  "creation": "2026-08-27 14:02:23.942974",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "user",
   "erpnext_context",
-  "user_query",
+  "column_break_fdbz",
   "usage_details",
+  "section_break_gtlb",
+  "user_query",
   "ai_prompt_tab",
   "prompt",
   "ai_response_tab",
@@ -18,6 +21,15 @@
   "ai_response"
  ],
  "fields": [
+  {
+   "default": "AK-LOG-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "AK-LOG-.YYYY.-",
+   "read_only": 1
+  },
   {
    "fieldname": "user",
    "fieldtype": "Link",
@@ -84,16 +96,24 @@
    "fieldname": "ai_response_tab",
    "fieldtype": "Tab Break",
    "label": "AI Response"
+  },
+  {
+   "fieldname": "column_break_fdbz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_gtlb",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-14 11:20:10.977005",
- "modified_by": "hirenerpnext79@gmail.com",
+ "modified": "2026-10-28 13:57:54.413776",
+ "modified_by": "Administrator",
  "module": "HNS AI Assistant App",
  "name": "Hns Akansha Log",
- "naming_rule": "Autoincrement",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
