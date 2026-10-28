@@ -43,19 +43,14 @@ class ERPNextTools:
         try:
             self._check_doctype_access(doctype)
 
-            # ---------------------------------------------------------
-            # Get actual DocType metadata
-            # ---------------------------------------------------------
             meta = frappe.get_meta(doctype)
 
-            # Actual database fields
             valid_fields = {
                 df.fieldname
                 for df in meta.fields
                 if df.fieldname
             }
 
-            # Standard document fields available in Frappe
             valid_fields.update({
                 "name",
                 "owner",
@@ -66,15 +61,11 @@ class ERPNextTools:
                 "idx"
             })
 
-            # ---------------------------------------------------------
-            # Validate requested fields
-            # ---------------------------------------------------------
             if not fields:
                 raise ValueError(
                     f"No fields specified for DocType '{doctype}'."
                 )
 
-            # Allow ["*"]
             if fields == ["*"]:
                 safe_fields = ["*"]
             else:
@@ -92,11 +83,7 @@ class ERPNextTools:
 
                 safe_fields = fields
 
-            # ---------------------------------------------------------
-            # Validate sum field
-            # ---------------------------------------------------------
             if operation == "sum":
-
                 if not sum_field:
                     raise ValueError(
                         "sum_field is required when operation='sum'."
@@ -109,9 +96,6 @@ class ERPNextTools:
                         f"Available fields: {sorted(valid_fields)}"
                     )
 
-            # ---------------------------------------------------------
-            # Validate filters
-            # ---------------------------------------------------------
             parsed_filters = self._parse_filters(filters)
 
             self._validate_filter_fields(
@@ -120,30 +104,19 @@ class ERPNextTools:
                 doctype
             )
 
-            # ---------------------------------------------------------
-            # Validate order_by
-            # ---------------------------------------------------------
             safe_order_by = self._validate_order_by(
                 order_by,
                 valid_fields,
                 doctype
             )
 
-            # ---------------------------------------------------------
-            # Single DocType
-            # ---------------------------------------------------------
             if meta.issingle:
-
                 data = self._query_single_doctype(
                     doctype,
                     safe_fields
                 )
 
-            # ---------------------------------------------------------
-            # Count
-            # ---------------------------------------------------------
             elif operation == "count":
-
                 count = frappe.db.count(
                     doctype,
                     filters=parsed_filters
@@ -155,39 +128,30 @@ class ERPNextTools:
                     }
                 ]
 
-            # ---------------------------------------------------------
-            # Sum
-            # ---------------------------------------------------------
             elif operation == "sum":
-
                 data = self._query_sum(
                     doctype,
                     parsed_filters,
                     sum_field
                 )
 
-            # ---------------------------------------------------------
-            # List
-            # ---------------------------------------------------------
             else:
+                safe_limit = frappe.utils.cint(limit) if limit is not None else None
+                safe_offset = frappe.utils.cint(offset) if offset is not None else 0
 
                 query_args = {
                     "doctype": doctype,
                     "filters": parsed_filters,
                     "fields": safe_fields,
                     "order_by": safe_order_by,
-                    "limit_page_length": limit or 0,
+                    "limit_page_length": safe_limit or 0,
                 }
 
-                # Pagination
-                if offset:
-                    query_args["limit_start"] = offset
+                if safe_offset:
+                    query_args["limit_start"] = safe_offset
 
                 data = frappe.get_all(**query_args)
 
-            # ---------------------------------------------------------
-            # Convert Frappe objects to JSON-safe data
-            # ---------------------------------------------------------
             data = json.loads(
                 frappe.as_json(data)
             )
@@ -203,7 +167,6 @@ class ERPNextTools:
             }
 
         except Exception as e:
-
             error_msg = str(e)
 
             self.captured_data.append({
@@ -221,105 +184,84 @@ class ERPNextTools:
         valid_fields,
         doctype
     ):
-        """
-        Make sure the AI never sends a filter
-        using a field that does not exist.
-        """
-
         if not filters:
             return
 
-        # Dictionary format
         if isinstance(filters, dict):
-
             for field in filters.keys():
-
                 if field not in valid_fields:
-
                     raise ValueError(
                         f"Invalid filter field '{field}' "
                         f"for DocType '{doctype}'. "
                         f"Available fields: {sorted(valid_fields)}"
                     )
-
             return
 
-        # List format:
-        #
-        # [
-        #   ["employee_name", "=", "Riddhi"],
-        #   ["attendance_date", ">=", "2026-08-31"]
-        # ]
-        #
         if isinstance(filters, list):
-
             for condition in filters:
-
                 if not isinstance(condition, (list, tuple)):
                     continue
 
                 if len(condition) >= 1:
-
                     field = condition[0]
-
                     if field not in valid_fields:
-
                         raise ValueError(
                             f"Invalid filter field '{field}' "
                             f"for DocType '{doctype}'. "
                             f"Available fields: {sorted(valid_fields)}"
                         )
 
-    def _validate_order_by(
-        self,
-        order_by,
-        valid_fields,
-        doctype
-    ):
-        """
-        Prevent the AI from generating ORDER BY
-        using a nonexistent field.
-        """
-
+    def _validate_order_by(self, order_by, valid_fields, doctype):
         if not order_by:
             return None
 
-        parts = order_by.strip().split()
+        cleaned_clauses = []
+        raw_clauses = [c.strip() for c in str(order_by).split(",") if c.strip()]
 
-        field = parts[0]
+        for clause in raw_clauses:
+            tokens = clause.strip().split()
+            if not tokens:
+                continue
 
-        if field not in valid_fields:
+            last_token_clean = tokens[-1].strip("` \t\r\n,;.").lower()
+            direction = ""
 
-            raise ValueError(
-                f"Invalid order_by field '{field}' "
-                f"for DocType '{doctype}'. "
-                f"Available fields: {sorted(valid_fields)}"
-            )
-
-        direction = ""
-
-        if len(parts) > 1:
-
-            direction = parts[1].lower()
-
-            if direction not in ("asc", "desc"):
-
+            if last_token_clean in ("desc", "descending", "decending"):
+                direction = "desc"
+                field_expr = " ".join(tokens[:-1]) if len(tokens) > 1 else ""
+            elif last_token_clean in ("asc", "ascending"):
+                direction = "asc"
+                field_expr = " ".join(tokens[:-1]) if len(tokens) > 1 else ""
+            elif len(tokens) > 1:
                 raise ValueError(
-                    f"Invalid order direction '{direction}'. "
-                    f"Use 'asc' or 'desc'."
+                    f"Invalid order direction '{tokens[-1]}'. Use 'asc' or 'desc'."
+                )
+            else:
+                field_expr = tokens[0]
+
+            field = field_expr.strip("` \t\r\n").split(".")[-1].strip("`")
+
+            if not field or field not in valid_fields:
+                raise ValueError(
+                    f"Invalid order_by field '{field or field_expr}' for DocType '{doctype}'. "
+                    f"Available fields: {sorted(valid_fields)}"
                 )
 
-        return f"{field} {direction}".strip()
+            cleaned_clauses.append(f"{field} {direction}".strip())
+
+        return ", ".join(cleaned_clauses) if cleaned_clauses else None
 
     def get_system_prompt(self, provider_doc=None):
-        doctypes = self._get_doctype_list_str(provider_doc)
-        prompt = provider_doc.system_prompt if provider_doc and provider_doc.system_prompt else ""
-        today_date = today()
-        
-        prompt = prompt.replace('{doctype_list_str}', doctypes)
-        prompt = prompt.replace('{today_date}', today_date)
-        
-        return prompt
+        try:
+            from hns_ai_assistant_app.hns_ai_assistant_app.doctype.hns_ai_assistant_rule.hns_ai_assistant_rule import (
+                get_active_rules,
+            )
+            doctypes = self._get_doctype_list_str(provider_doc)
+            today_date = today()
+            return get_active_rules(doctypes=doctypes, today_date=today_date)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: get_system_prompt error")
+            return "You are a helpful assistant."
 
     def _check_doctype_access(self, doctype: str):
         from hns_ai_assistant_app.api.ai_handler import check_doctype_permission
@@ -380,6 +322,7 @@ class ERPNextTools:
             if "*" in allowed_doctypes:
                 return "All ERPNext DocTypes"
                 
-            return ", ".join(sorted(allowed_doctypes))
+            return "\n".join(sorted(allowed_doctypes))
         except Exception as e:
+            frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: _get_doctype_list_str error")
             return f"Error retrieving doctypes: {str(e)}"

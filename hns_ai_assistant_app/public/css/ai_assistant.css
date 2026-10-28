@@ -253,6 +253,11 @@
     border-radius: 20px 20px 20px 4px;
     border: 1px solid #e5e7eb;
     box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    max-width: 88%;
+}
+
+#ask-akansha-panel.full-width .chat-message.akansha {
+    max-width: 96%;
 }
 
 /* Markdown inside AI bubble */
@@ -268,25 +273,20 @@
     border-radius: 4px;
     font-size: 12px;
 }
-.chat-message.akansha {
-    max-width: 88%;
-}
-
-#ask-akansha-panel.full-width .chat-message.akansha {
-    max-width: 96%;
-}
 
 /* ---- Table & Data Formatting in Chat Bubbles ---- */
 .chat-message.akansha.has-table,
 .chat-message.akansha:has(.aak-table-container),
-.chat-message.akansha:has(.aak-table-scroll) {
+.chat-message.akansha:has(.aak-table-scroll),
+.chat-message.akansha:has(table) {
     max-width: 100% !important;
     width: 100% !important;
 }
 
 .aak-msg-row.has-table,
 .aak-msg-row:has(.aak-table-container),
-.aak-msg-row:has(.aak-table-scroll) {
+.aak-msg-row:has(.aak-table-scroll),
+.aak-msg-row:has(table) {
     width: 100% !important;
 }
 
@@ -411,6 +411,45 @@
 
 .aak-data-table tbody tr:last-child td {
     border-bottom: none;
+}
+
+/* Generic Fallback for standard markdown tables */
+.chat-message.akansha table {
+    width: max-content !important;
+    min-width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 8px;
+    font-size: 12.5px;
+    border-radius: 8px;
+    overflow: hidden;
+    table-layout: auto !important;
+}
+
+.chat-message.akansha th, .chat-message.akansha td {
+    padding: 9px 14px !important;
+    border: 1px solid #e5e7eb;
+    text-align: left;
+    white-space: nowrap !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+    vertical-align: middle;
+}
+
+.chat-message.akansha th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 11px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #cbd5e1 !important;
+}
+
+.chat-message.akansha .msg-content > table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
 }
 
 .aak-json-block {
