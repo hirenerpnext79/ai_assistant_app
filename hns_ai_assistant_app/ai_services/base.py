@@ -110,7 +110,6 @@ class BaseAIService:
                 "ai_response": self._to_json_str(ai_response) if isinstance(ai_response, (dict, list)) else (ai_response or ""),
                 "erpnext_context": 1 if frappe.utils.cint(erpnext_context) else 0,
                 "ai_api_response": self._to_json_str(api_response),
-                "prompt": self._to_json_str(prompt),
                 "response_data": self._to_json_str(response_data),
                 "usage_details": self._to_json_str(usage_details)
             })
