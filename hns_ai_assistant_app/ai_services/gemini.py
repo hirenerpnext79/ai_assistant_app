@@ -5,11 +5,10 @@ from hns_ai_assistant_app.ai_services.base import BaseAIService
 
 
 def _strip_gemini_unsupported(schema):
-    """Remove JSON schema fields unsupported by the Gemini API."""
-    UNSUPPORTED = {"additionalProperties", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"}
-    if isinstance(schema, dict):
-        return {k: _strip_gemini_unsupported(v) for k, v in schema.items() if k not in UNSUPPORTED}
-    if isinstance(schema, list):
+    unsupported = {"additionalProperties", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"}
+    if type(schema) is dict:
+        return {k: _strip_gemini_unsupported(v) for k, v in schema.items() if k not in unsupported}
+    if type(schema) is list:
         return [_strip_gemini_unsupported(i) for i in schema]
     return schema
 
@@ -63,7 +62,7 @@ class GeminiService(BaseAIService):
         payload = {
             "systemInstruction": {"parts": [{"text": final_system_prompt}]},
             "contents": contents,
-            "generationConfig": {"temperature": 0.7}
+            "generationConfig": {"temperature": 0.1}
         }
         
         if tools:
@@ -87,6 +86,15 @@ class GeminiService(BaseAIService):
                     function_responses = []
                     
                     for func_call in function_calls:
+                        if self._should_skip_redundant_call(func_call, function_calls):
+                            function_responses.append({
+                                "functionResponse": {
+                                    "name": func_call["name"],
+                                    "response": {"result": "Skipped redundant probe query without filters"}
+                                }
+                            })
+                            continue
+
                         result = self._execute_tool(
                             function_name=func_call["name"],
                             args=func_call.get("args", {}),
@@ -96,13 +104,13 @@ class GeminiService(BaseAIService):
                             user_query=message
                         )
                         
-                        if isinstance(result, dict) and "error" in result:
+                        if type(result) is dict and "error" in result:
                             return result["error"]
                             
                         function_responses.append({
                             "functionResponse": {
                                 "name": func_call["name"],
-                                "response": result if isinstance(result, dict) else {"result": result}
+                                "response": result if type(result) is dict else {"result": result}
                             }
                         })
                         
@@ -121,7 +129,10 @@ class GeminiService(BaseAIService):
                 "total_token_count": usage_metadata.get("totalTokenCount", 0)
             } if usage_metadata else {}
 
-            log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+            log_data = (
+                tools_manager.captured_data if len(tools_manager.captured_data) > 1
+                else (tools_manager.captured_data[0] if tools_manager.captured_data else None)
+            )
             prompt_log = json.dumps(payload, indent=4)
 
             api_log = {}
@@ -147,3 +158,16 @@ class GeminiService(BaseAIService):
             self.log_error(message, error_msg, prompt=prompt_log, erpnext_context=enable_context)
             frappe.log_error(title="Gemini API Error", message=error_msg)
             raise Exception(error_msg)
+
+    def _should_skip_redundant_call(self, func_call, function_calls):
+        if len(function_calls) <= 1:
+            return False
+        args = func_call.get("args", {})
+        filters = args.get("filters")
+        doctype = args.get("doctype")
+        if (not filters or filters == {}) and doctype:
+            return any(
+                f != func_call and f.get("args", {}).get("doctype") == doctype and f.get("args", {}).get("filters")
+                for f in function_calls
+            )
+        return False

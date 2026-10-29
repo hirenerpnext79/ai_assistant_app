@@ -1,8 +1,10 @@
 import frappe
 import json
+import re
 from frappe.utils import now, today
 
 SETTINGS_DOCTYPE = "Hns AI Assistant App Setting"
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class ERPNextTools:
@@ -104,11 +106,19 @@ class ERPNextTools:
                 doctype
             )
 
+            parsed_filters = self._normalize_datetime_filters(
+                parsed_filters,
+                doctype
+            )
+
             safe_order_by = self._validate_order_by(
                 order_by,
                 valid_fields,
                 doctype
             )
+
+            if not safe_order_by and operation == "list" and self._has_creation_filter(parsed_filters):
+                safe_order_by = "creation desc"
 
             if meta.issingle:
                 data = self._query_single_doctype(
@@ -156,9 +166,12 @@ class ERPNextTools:
                 frappe.as_json(data)
             )
 
+            final_sql_query = (frappe.db.last_query or "").strip()
+
             self.captured_data.append({
                 "doctype": doctype,
                 "operation": operation,
+                "final_sql_query": final_sql_query,
                 "data": data
             })
 
@@ -168,10 +181,12 @@ class ERPNextTools:
 
         except Exception as e:
             error_msg = str(e)
+            final_sql_query = (frappe.db.last_query or "").strip()
 
             self.captured_data.append({
                 "doctype": doctype,
-                "error": error_msg
+                "error": error_msg,
+                "final_sql_query": final_sql_query
             })
 
             return {
@@ -187,7 +202,7 @@ class ERPNextTools:
         if not filters:
             return
 
-        if isinstance(filters, dict):
+        if type(filters) is dict:
             for field in filters.keys():
                 if field not in valid_fields:
                     raise ValueError(
@@ -197,9 +212,9 @@ class ERPNextTools:
                     )
             return
 
-        if isinstance(filters, list):
+        if type(filters) is list:
             for condition in filters:
-                if not isinstance(condition, (list, tuple)):
+                if type(condition) not in (list, tuple):
                     continue
 
                 if len(condition) >= 1:
@@ -256,28 +271,92 @@ class ERPNextTools:
             from hns_ai_assistant_app.hns_ai_assistant_app.doctype.hns_ai_assistant_rule.hns_ai_assistant_rule import (
                 get_active_rules,
             )
+            from frappe.utils import now_datetime
             doctypes = self._get_doctype_list_str(provider_doc)
-            today_date = today()
+            today_date = f"{today()} ({now_datetime().strftime('%A')})"
             return get_active_rules(doctypes=doctypes, today_date=today_date)
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: get_system_prompt error")
             return "You are a helpful assistant."
 
     def _check_doctype_access(self, doctype: str):
+        if not self.provider_doc:
+            return
         from hns_ai_assistant_app.api.ai_handler import check_doctype_permission
         is_allowed, msg = check_doctype_permission(self.provider_doc, doctype)
         if not is_allowed:
             frappe.throw(msg)
 
     def _parse_filters(self, filters):
-        if isinstance(filters, (dict, list)):
+        if type(filters) in (dict, list):
             return filters
-        if isinstance(filters, str) and filters:
+        if type(filters) is str and filters:
             try:
                 return frappe.parse_json(filters)
             except Exception:
                 pass
         return {}
+
+    def _normalize_datetime_filters(self, parsed_filters, doctype):
+        try:
+            meta = frappe.get_meta(doctype)
+            datetime_fields = {
+                df.fieldname for df in meta.fields
+                if df.fieldname and df.fieldtype in ("Datetime", "Time")
+            }
+            datetime_fields.update({"creation", "modified"})
+
+            def convert_val(op, val):
+                if type(val) is str and DATE_PATTERN.match(val):
+                    if op in ("=", "=="):
+                        return "between", [f"{val} 00:00:00", f"{val} 23:59:59.999999"]
+                    if op in ("<=", ">"):
+                        return op, f"{val} 23:59:59.999999"
+                    if op in (">=", "<"):
+                        return op, f"{val} 00:00:00"
+                if str(op).lower() == "between" and type(val) in (list, tuple) and len(val) == 2:
+                    s = f"{val[0]} 00:00:00" if type(val[0]) is str and DATE_PATTERN.match(val[0]) else val[0]
+                    e = f"{val[1]} 23:59:59.999999" if type(val[1]) is str and DATE_PATTERN.match(val[1]) else val[1]
+                    return "between", [s, e]
+                return op, val
+
+            if type(parsed_filters) is dict:
+                normalized = {}
+                for field, val in parsed_filters.items():
+                    if field in datetime_fields:
+                        if type(val) is str and DATE_PATTERN.match(val):
+                            val = ["between", [f"{val} 00:00:00", f"{val} 23:59:59.999999"]]
+                        elif type(val) in (list, tuple) and len(val) == 2:
+                            op, c_val = convert_val(val[0], val[1])
+                            val = [op, c_val]
+                    normalized[field] = val
+                return normalized
+
+            if type(parsed_filters) is list:
+                normalized = []
+                for item in parsed_filters:
+                    if type(item) in (list, tuple) and len(item) == 3 and item[0] in datetime_fields:
+                        op, c_val = convert_val(item[1], item[2])
+                        normalized.append([item[0], op, c_val])
+                    elif type(item) in (list, tuple) and len(item) == 4 and item[1] in datetime_fields:
+                        op, c_val = convert_val(item[2], item[3])
+                        normalized.append([item[0], item[1], op, c_val])
+                    else:
+                        normalized.append(item)
+                return normalized
+
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Hns AI Assistant: _normalize_datetime_filters error")
+        return parsed_filters
+
+    def _has_creation_filter(self, parsed_filters):
+        if type(parsed_filters) is dict:
+            return "creation" in parsed_filters
+        if type(parsed_filters) is list:
+            for condition in parsed_filters:
+                if type(condition) in (list, tuple) and condition and condition[0] == "creation":
+                    return True
+        return False
 
     def _query_single_doctype(self, doctype: str, fields: list) -> list:
         doc = frappe.get_single(doctype).as_dict()
@@ -313,6 +392,8 @@ class ERPNextTools:
 
     def _get_doctype_list_str(self, provider_doc) -> str:
         try:
+            if not provider_doc:
+                return "All ERPNext DocTypes"
             from hns_ai_assistant_app.api.ai_handler import get_all_allowed_doctypes
             allowed_doctypes = get_all_allowed_doctypes(provider_doc)
             

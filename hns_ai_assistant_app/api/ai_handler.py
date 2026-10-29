@@ -33,7 +33,7 @@ def ask_akansha(message, context=None, enable_context=None, provider_name=None):
         return _("Please say something!")
 
     provider_doc = _get_and_validate_provider(provider_name, message, enable_context)
-    if isinstance(provider_doc, str):
+    if type(provider_doc) is str:
         return provider_doc
 
     success, context_result, current_doctype = _validate_and_get_context(provider_doc, context, enable_context, message)
@@ -78,10 +78,10 @@ def _get_and_validate_provider(provider_name, message, enable_context=None):
 def _validate_and_get_context(provider_doc, context, enable_context, message):
     current_doctype = None
     if context:
-        context_dict = frappe.parse_json(context) if isinstance(context, str) else context
-        route = context_dict.get("route") if isinstance(context_dict, dict) else None
+        context_dict = frappe.parse_json(context) if type(context) is str else context
+        route = context_dict.get("route") if type(context_dict) is dict else None
 
-        if route and isinstance(route, list) and len(route) >= 2 and route[0] in ("Form", "List", "Tree"):
+        if route and type(route) is list and len(route) >= 2 and route[0] in ("Form", "List", "Tree"):
             current_doctype = route[1]
 
         is_allowed, msg = check_doctype_permission(provider_doc)
@@ -212,6 +212,8 @@ def get_chat_history():
 
 
 def get_matching_permissions_for_user(provider_doc, user=None):
+    if not provider_doc:
+        return None
     user = user or frappe.session.user
     provider_permissions = provider_doc.get("hns_ai_doctype_permission")
     if not provider_permissions:

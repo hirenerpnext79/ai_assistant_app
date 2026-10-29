@@ -46,10 +46,12 @@ class OpenRouterService(BaseAIService):
             
                 payload = {
                     "model": self.model,
-                    "messages": messages
+                    "messages": messages,
+                    "temperature": 0.1
                 }
                 if tools:
                     payload["tools"] = tools
+                    payload["parallel_tool_calls"] = False
             
                 response = requests.post(self.base_url, headers=headers, json=payload)
                 self.handle_api_errors(response)
@@ -84,7 +86,7 @@ class OpenRouterService(BaseAIService):
                             user_query=user_message
                         )
                         
-                        if isinstance(tool_result, dict) and "error" in tool_result:
+                        if type(tool_result) is dict and "error" in tool_result:
                             return tool_result["error"]
                         
                         logged_function_calls.append({
@@ -93,7 +95,7 @@ class OpenRouterService(BaseAIService):
                         })
                         logged_function_responses.append({
                             "name": function_name,
-                            "response": tool_result if isinstance(tool_result, dict) else {"result": tool_result}
+                            "response": tool_result if type(tool_result) is dict else {"result": tool_result}
                         })
                         
                         messages.append({
@@ -105,7 +107,10 @@ class OpenRouterService(BaseAIService):
                     final_content = message_obj.get('content', '')
                     break
                     
-            log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+            log_data = (
+                tools_manager.captured_data if len(tools_manager.captured_data) > 1
+                else (tools_manager.captured_data[0] if tools_manager.captured_data else None)
+            )
             prompt_log = json.dumps(messages, indent=4)
             usage_details = json.dumps(total_usage, indent=4)
 

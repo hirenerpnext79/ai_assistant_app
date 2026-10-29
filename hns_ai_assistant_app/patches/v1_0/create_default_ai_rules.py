@@ -28,14 +28,14 @@ DEFAULT_RULES = [
         "priority": 30,
         "is_active": 1,
         "description": "Standard assistant rule: Date And Relative Date Rules",
-        "rule_prompt": "Use `{today_date}` as the reference date/time.\n\nResolve relative dates correctly.\n\nExamples:\n\n\"today\"\n\u2192 current calendar date\n\n\"yesterday\"\n\u2192 previous calendar date\n\n\"last 7 days\"\n\u2192 the 7 calendar dates ending on the current date, unless the user explicitly specifies another interpretation\n\n\"last 10 days\"\n\u2192 exactly 10 calendar dates ending on the current date\n\n\"last 30 days\"\n\u2192 exactly 30 calendar dates ending on the current date\n\n\"this month\"\n\u2192 first day of the current month through the current date, unless the user explicitly asks for the complete calendar month\n\n\"last month\"\n\u2192 complete previous calendar month\n\n\"this year\"\n\u2192 January 1 of the current year through the current date\n\n\"last year\"\n\u2192 complete previous calendar year\n\nIMPORTANT:\nDo not accidentally include an extra day.\n\nIf the user asks for \"last 10 days\", the calculated date range must contain exactly 10 calendar dates.\n\nFor example, if the current date is 2026-09-09:\n\nLast 10 calendar days:\n2026-08-31 through 2026-09-09\n\nTotal calendar days:\n10\n\nDo not use 2026-08-30 through 2026-09-09 because that contains 11 days."
+        "rule_prompt": "Use `{today_date}` as the reference date/time.\n\nResolve relative dates correctly.\n\nExamples:\n\n\"today\"\n→ current calendar date ({today_date})\n\n\"yesterday\"\n→ previous calendar date\n\n\"last 7 days\"\n→ the 7 calendar dates ending on the current date, unless the user explicitly specifies another interpretation\n\n\"last 10 days\"\n→ exactly 10 calendar dates ending on the current date\n\n\"last 30 days\"\n→ exactly 30 calendar dates ending on the current date\n\n\"this month\"\n→ first day of the current month through the current date, unless the user explicitly asks for the complete calendar month\n\n\"last month\"\n→ complete previous calendar month\n\n\"this year\"\n→ January 1 of the current year through the current date\n\n\"last year\"\n→ complete previous calendar year\n\nIMPORTANT DATE FIELD RULE:\nIf the user requests data for a date or period (such as 'today', 'yesterday', 'this week', 'last 7 days', 'this month', or date-wise) and did NOT explicitly name a specific date field (such as 'posting_date', 'transaction_date', 'due_date'):\n- You MUST ALWAYS use the standard `creation` field to compare date and fetch data.\n- Every DocType in ERPNext has the standard `creation` field.\n- NEVER guess or invent DocType-specific date fields (e.g. posting_date, reference_date) unless the user explicitly used that exact field name in their prompt.\n\nSTRICT DATE FILTERING:\n- When a date filter is requested (e.g. 'today'), NEVER call `query_erpnext_data` with empty filters `filters: {}`.\n- NEVER return records from other dates when a date filter is requested.\n- For date filtering on `creation`, filter the full day: `\"filters\": {\"creation\": [\"between\", [\"{today_date} 00:00:00\", \"{today_date} 23:59:59\"]]}` or `\"filters\": {\"creation\": \"{today_date}\"}`.\n\nDATE-WISE ORDERING:\n- When returning records date-wise or when filtering by date, set `order_by='creation desc'` (or 'creation asc' if requested) so data is returned in proper date-wise order with the most recent records first.\n\nSINGLE TARGETED TOOL CALL:\n- Execute ONLY ONE tool call with the required date filter. NEVER make multiple speculative or competing tool calls (such as unfiltered list + filtered list + count)."
     },
     {
         "rule_name": "Query Filter Rules",
         "priority": 40,
         "is_active": 1,
         "description": "Standard assistant rule: Query Filter Rules",
-        "rule_prompt": "When the user provides a filter, use it.\n\nExample:\n\nUser:\nemployee name is \"Riddhi Manish Tamakuwala\"\n\nUse the exact employee value supplied by the user.\n\nDo not replace it with:\n- employee ID unless required by the actual DocType relationship\n- a partial name\n- another employee\n- a guessed value\n\nIf the user specifies multiple filters, apply all applicable filters.\n\nExample:\n\nemployee = Riddhi Manish Tamakuwala\ndate >= start_date\ndate <= end_date\n\nDo not silently remove user-provided filters."
+        "rule_prompt": "When the user provides a filter, use it.\n\nExample:\n\nUser:\nemployee name is \"Riddhi Manish Tamakuwala\"\n\nUse the exact employee value supplied by the user.\n\nDo not replace it with:\n- employee ID unless required by the actual DocType relationship\n- a partial name\n- another employee\n- a guessed value\n\nIf the user specifies multiple filters, apply all applicable filters.\n\nExample:\n\nemployee = Riddhi Manish Tamakuwala\ndate >= start_date\ndate <= end_date\n\nDo not silently remove user-provided filters.\n\nDate Filter Field Rule:\n- If the user specifies a date filter (e.g. 'today', 'yesterday', 'last 7 days', 'this month') without explicitly specifying a date field name:\n  * ALWAYS use `creation` as the filter field.\n  * NEVER guess other date field names like posting_date, reference_date, or transaction_date.\n  * NEVER pass empty filters `filters: {}` when a date filter was requested."
     },
     {
         "rule_name": "Employee Check-In Vs Attendance",
@@ -98,7 +98,7 @@ DEFAULT_RULES = [
         "priority": 130,
         "is_active": 1,
         "description": "Standard assistant rule: Date-Wise Summary",
-        "rule_prompt": "When the user asks for date-wise information:\n\n- Group records by the actual requested date field.\n- Use calendar dates consistently.\n- Do not count multiple check-in records as multiple attendance days when the user asks for daily attendance.\n- For Employee Checkin, multiple check-ins on the same date may exist and should remain separate when the user asks for check-in counts."
+        "rule_prompt": "When the user asks for date-wise information:\n\n- Group records by the actual requested date field.\n- If the user did not specify a particular date field, ALWAYS group and sort by `creation` date.\n- Always sort date-wise records using `order_by='creation desc'` (or 'creation asc' if oldest first is requested).\n- Use calendar dates consistently.\n- Do not count multiple check-in records as multiple attendance days when the user asks for daily attendance.\n- For Employee Checkin, multiple check-ins on the same date may exist and should remain separate when the user asks for check-in counts."
     },
     {
         "rule_name": "General Erpnext Data",
@@ -150,6 +150,13 @@ DEFAULT_RULES = [
         "rule_prompt": "- If the user asks for count, total number of records, or how many (e.g. 'give me top item count', 'item count', 'sales invoice count'):\n  * The operation is STRICTLY `operation: 'count'`.\n  * Execute ONLY ONE tool call with `operation: 'count'`.\n  * NEVER execute `operation: 'list'` and NEVER run both count and list together.\n  * NEVER pass a `limit` parameter for count operations."
     },
     {
+        "rule_name": "Default Date Field & Date-Wise Query Rules",
+        "priority": 205,
+        "is_active": 1,
+        "description": "Always use creation date when no specific date field is mentioned and enforce date-wise retrieval",
+        "rule_prompt": "- If the user specifies or implies a date filter (e.g. 'today', 'yesterday', 'this week', 'last 7 days', 'this month', 'today's data', 'date-wise') and does NOT specify any particular date field:\n  * ALWAYS use the `creation` date field to compare date and fetch data.\n  * NEVER invent or guess DocType-specific date fields (e.g. 'posting_date', 'reference_date', 'transaction_date') unless the user explicitly named that field in their request.\n  * NEVER pass empty filters `filters: {}` when a date filter is requested.\n  * Filter `creation` for the full day: `filters={\"creation\": [\"between\", [\"{today_date} 00:00:00\", \"{today_date} 23:59:59\"]]}` or `filters={\"creation\": \"{today_date}\"}`.\n  * For date-wise queries or date-filtered lists, ALWAYS set `order_by='creation desc'` (or 'creation asc' if requested).\n- EXACTLY ONE TOOL CALL RULE:\n  * Under all circumstances, execute EXACTLY ONE tool call per user query.\n  * NEVER make multiple parallel or speculative tool calls trying different guesses (e.g. do NOT run unfiltered list, posting_date list, count, and reference_date list together)."
+    },
+    {
         "rule_name": "Fresh Parameters & No Hallucinated Limits",
         "priority": 210,
         "is_active": 1,
@@ -196,3 +203,9 @@ def execute():
                 "rule_prompt": item.get("rule_prompt", "")
             })
             doc.insert(ignore_permissions=True)
+        else:
+            doc = frappe.get_doc("Hns AI Assistant Rule", rule_name)
+            doc.priority = item.get("priority", doc.priority)
+            doc.description = item.get("description", doc.description)
+            doc.rule_prompt = item.get("rule_prompt", doc.rule_prompt)
+            doc.save(ignore_permissions=True)

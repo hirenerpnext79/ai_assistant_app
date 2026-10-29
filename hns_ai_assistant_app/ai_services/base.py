@@ -13,7 +13,7 @@ class BaseAIService:
     def _to_json_str(self, val):
         if not val:
             return ""
-        if isinstance(val, (dict, list)):
+        if type(val) in (dict, list):
             try:
                 return json.dumps(val, indent=4)
             except Exception:
@@ -27,7 +27,7 @@ class BaseAIService:
         doctypes_with_records = set()
         for item in captured_items:
             records = item.get("data")
-            if isinstance(records, list) and len(records) > 0 and isinstance(records[0], dict):
+            if type(records) is list and records and type(records[0]) is dict:
                 if not (len(records) == 1 and len(records[0]) == 1 and ("count" in records[0] or "sum" in records[0])):
                     doctypes_with_records.add(item.get("doctype"))
 
@@ -51,7 +51,7 @@ class BaseAIService:
                 )
                 continue
 
-            if isinstance(records, list) and len(records) == 1 and isinstance(records[0], dict) and len(records[0]) == 1 and ("count" in records[0] or "sum" in records[0]):
+            if type(records) is list and len(records) == 1 and type(records[0]) is dict and len(records[0]) == 1 and ("count" in records[0] or "sum" in records[0]):
                 if doctype in doctypes_with_records:
                     continue
                 op_key = "count" if "count" in records[0] else "sum"
@@ -66,7 +66,7 @@ class BaseAIService:
                 )
                 continue
 
-            if isinstance(records, list) and len(records) > 0 and isinstance(records[0], dict):
+            if type(records) is list and records and type(records[0]) is dict:
                 headers = list(records[0].keys())
                 num_th = "<th style='padding: 9px 14px; font-weight: 600; font-size: 11.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #cbd5e1; background: #f8fafc; white-space: nowrap !important; word-break: normal !important; position: sticky; top: 0; width: 40px;'>#</th>"
                 header_html = num_th + "".join(
@@ -97,7 +97,7 @@ class BaseAIService:
                     f"</div>"
                 )
                 sections.append(table_html)
-            elif isinstance(records, dict):
+            elif type(records) is dict:
                 sections.append(f"<pre class='aak-json-block'><code>{json.dumps(records, indent=4)}</code></pre>")
             else:
                 sections.append(f"<p>{str(records)}</p>")
@@ -109,7 +109,7 @@ class BaseAIService:
                 "doctype": "Hns Akansha Log",
                 "user": frappe.session.user,
                 "user_query": user_query,
-                "ai_response": self._to_json_str(ai_response) if isinstance(ai_response, (dict, list)) else (ai_response or ""),
+                "ai_response": self._to_json_str(ai_response) if type(ai_response) in (dict, list) else (ai_response or ""),
                 "erpnext_context": 1 if frappe.utils.cint(erpnext_context) else 0,
                 "ai_api_response": self._to_json_str(api_response),
                 "prompt": self._to_json_str(prompt),
@@ -155,12 +155,16 @@ class BaseAIService:
                 operation=args.get('operation', 'list'),
                 order_by=args.get('order_by'),
                 limit=args.get('limit'),
+                offset=args.get('offset', 0),
                 sum_field=args.get('sum_field'),
             )
             
-            if isinstance(tool_result, dict) and "error" in tool_result:
+            if type(tool_result) is dict and "error" in tool_result:
                 error_msg = tool_result["error"]
-                log_data = tools_manager.captured_data[0] if tools_manager.captured_data else None
+                log_data = (
+                    tools_manager.captured_data if len(tools_manager.captured_data) > 1
+                    else (tools_manager.captured_data[0] if tools_manager.captured_data else None)
+                )
                 prompt_log = json.dumps(messages_for_logging, indent=4) if messages_for_logging else None
                 error_api_log = {
                     "functionCall": {
