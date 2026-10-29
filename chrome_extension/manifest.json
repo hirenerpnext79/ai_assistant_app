@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "ERPNext Gemini Side Panel & Omnibox",
+  "version": "1.1.0",
+  "description": "Open Gemini in Chrome Side Panel, auto-post prompts from ERPNext, or type @gem in the address bar to auto-send prompts.",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "declarativeNetRequest",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "https://gemini.google.com/*"
+  ],
+  "omnibox": {
+    "keyword": "gem"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open Gemini Side Panel"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "http://*/*",
+        "https://*/*"
+      ],
+      "exclude_matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": ["gemini_injector.js"],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "gemini_frame_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
+}

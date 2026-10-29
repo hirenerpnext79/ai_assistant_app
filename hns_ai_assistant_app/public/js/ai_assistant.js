@@ -906,45 +906,40 @@ hns_ai_assistant_app.ReportPrompt = {
         // 1. Copy prompt and full report table to clipboard
         me.copy_to_clipboard(full_prompt);
 
-        // 2. Open docked Gemini Sidebar right from Chrome
-        const sw = window.screen.availWidth || 1366;
-        const sh = window.screen.availHeight || 768;
-        const sidebar_w = Math.min(500, Math.max(420, Math.floor(sw * 0.38)));
-        const sidebar_h = Math.max(580, sh - 60);
-        const pos_x = Math.max(0, sw - sidebar_w - 10);
-        const pos_y = 30;
+        // 2. Dispatch custom event to Chrome Extension to open the native Side Panel
+        window.postMessage({
+            type: "HNS_OPEN_GEMINI_SIDEPANEL",
+            prompt: full_prompt,
+            report_name: report_name
+        }, "*");
 
-        // Open Gemini directly - consumer Gemini web app does not accept query params in URL
-        const gemini_url = "https://gemini.google.com/app";
+        const is_extension_installed = document.documentElement.getAttribute("data-gemini-sidepanel-installed") === "true";
 
-        window.open(
-            gemini_url,
-            "GeminiSidebar",
-            `width=${sidebar_w},height=${sidebar_h},top=${pos_y},left=${pos_x},resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`
-        );
+        if (is_extension_installed) {
+            frappe.show_alert({
+                message: __("✨ Gemini Side Panel opened with report data!"),
+                indicator: "green"
+            }, 4);
+        } else {
+            const sw = window.screen.availWidth || 1366;
+            const sh = window.screen.availHeight || 768;
+            const sidebar_w = Math.min(500, Math.max(420, Math.floor(sw * 0.38)));
+            const sidebar_h = Math.max(580, sh - 60);
+            const pos_x = Math.max(0, sw - sidebar_w - 10);
+            const pos_y = 30;
+            const gemini_url = "https://gemini.google.com/app";
 
-        frappe.show_alert({
-            message: __("✨ Gemini Sidebar opened! Auto-pasting report screen data..."),
-            indicator: "green"
-        }, 4);
+            window.open(
+                gemini_url,
+                "GeminiSidebar",
+                `width=${sidebar_w},height=${sidebar_h},top=${pos_y},left=${pos_x},resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`
+            );
 
-        // 3. Ping local helper to auto-paste (Ctrl + V) and press Enter
-        const controller = new AbortController();
-        const timeout_id = setTimeout(() => controller.abort(), 5000);
-
-        fetch("http://127.0.0.1:8765/ask-gemini", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: full_prompt }),
-            signal: controller.signal
-        })
-        .then(res => res.json())
-        .then(data => {
-            clearTimeout(timeout_id);
-        })
-        .catch(() => {
-            clearTimeout(timeout_id);
-        });
+            frappe.show_alert({
+                message: __("✨ Gemini window opened! Auto-pasting report screen data..."),
+                indicator: "green"
+            }, 4);
+        }
     },
 
     copy_to_clipboard: function (text) {
