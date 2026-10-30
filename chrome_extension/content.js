@@ -6,7 +6,8 @@ window.addEventListener("message", (event) => {
         try {
             chrome.runtime.sendMessage({
                 type: "OPEN_GEMINI_SIDEPANEL",
-                prompt: event.data.prompt || ""
+                prompt: event.data.prompt || "",
+                attachment: event.data.attachment || null
             });
         } catch (e) {
             console.warn("[HNS Extension] Bridge error:", e);

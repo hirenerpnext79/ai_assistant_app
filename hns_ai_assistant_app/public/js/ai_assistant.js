@@ -592,6 +592,8 @@ hns_ai_assistant_app.Assistant = {
 };
 
 hns_ai_assistant_app.ReportPrompt = {
+    prompt_cache: {},
+
     init: function () {
         this.setup_query_report_interceptor();
         this.bind_route_events();
@@ -655,6 +657,13 @@ hns_ai_assistant_app.ReportPrompt = {
     bind_route_events: function () {
         const me = this;
         frappe.router.on("change", () => {
+            const route = frappe.get_route ? frappe.get_route() : [];
+            if (route[0] === "query-report" || route[0] === "report") {
+                const r_name = route[1];
+                if (r_name && me.prompt_cache) {
+                    delete me.prompt_cache[r_name];
+                }
+            }
             setTimeout(() => me.check_and_attach(), 300);
             setTimeout(() => me.check_and_attach(), 800);
             setTimeout(() => me.check_and_attach(), 1500);
@@ -687,21 +696,77 @@ hns_ai_assistant_app.ReportPrompt = {
         if (!page || !page.inner_toolbar || !report_name) return;
 
         const $toolbar = $(page.inner_toolbar);
-        if ($toolbar.find(".hns-free-ai-btn").length) return;
+        const existing_btn = $toolbar.find(".hns-report-prompt-btn");
+        if (existing_btn.length && existing_btn.attr("data-report") === report_name) {
+            return;
+        }
 
-        const $btn = $(`
-            <button type="button" class="btn btn-default ellipsis hns-free-ai-btn" data-label="Ask Gemini" title="${__("Ask Gemini about {0}", [report_name])}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                </svg>
-                <span>${__("Ask Gemini")}</span>
-            </button>
-        `);
+        if ($toolbar.data("hns-loading-report") === report_name) {
+            return;
+        }
 
-        $btn.on("click", (e) => {
-            e.preventDefault();
-            this.open_prompt_dialog(report_name);
+        if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
+            this.render_toolbar_button($toolbar, report_name, this.prompt_cache[report_name]);
+            return;
+        }
+
+        $toolbar.data("hns-loading-report", report_name);
+
+        frappe.call({
+            method: "hns_ai_assistant_app.api.ai_handler.get_report_prompts",
+            args: { report_name: report_name },
+            callback: (r) => {
+                $toolbar.removeData("hns-loading-report");
+                const prompts = r.message || [];
+                if (!this.prompt_cache) this.prompt_cache = {};
+                this.prompt_cache[report_name] = prompts;
+                this.render_toolbar_button($toolbar, report_name, prompts);
+            },
+            error: () => {
+                $toolbar.removeData("hns-loading-report");
+            }
         });
+    },
+
+    render_toolbar_button: function ($toolbar, report_name, prompts) {
+        $toolbar.find(".hns-report-prompt-btn").remove();
+
+        let $btn;
+        if (prompts && prompts.length > 0) {
+            $btn = $(`
+                <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-free-ai-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Ask Gemini" title="${__("Ask Gemini about {0}", [report_name])}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    <span>${__("Ask Gemini")}</span>
+                </button>
+            `);
+
+            $btn.on("click", (e) => {
+                e.preventDefault();
+                this.render_dialog(report_name, prompts);
+            });
+        } else {
+            $btn = $(`
+                <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-add-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Add Prompt" title="${__("Add Prompt for {0}", [report_name])}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>${__("Add Prompt")}</span>
+                </button>
+            `);
+
+            $btn.on("click", (e) => {
+                e.preventDefault();
+                delete this.prompt_cache[report_name];
+                if (e.ctrlKey || e.metaKey) {
+                    window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
+                } else {
+                    frappe.new_doc("HNS AI Assistant App Prompt", { report: report_name });
+                }
+            });
+        }
 
         const $actions = $toolbar.find('.inner-group-button[data-label="Actions"], .inner-group-button');
         if ($actions.length) {
@@ -713,6 +778,11 @@ hns_ai_assistant_app.ReportPrompt = {
     },
 
     open_prompt_dialog: function (report_name) {
+        if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
+            this.render_dialog(report_name, this.prompt_cache[report_name]);
+            return;
+        }
+
         frappe.call({
             method: "hns_ai_assistant_app.api.ai_handler.get_report_prompts",
             args: { report_name: report_name },
@@ -720,6 +790,8 @@ hns_ai_assistant_app.ReportPrompt = {
             freeze_message: __("Loading AI Prompts..."),
             callback: (r) => {
                 const prompts = r.message || [];
+                if (!this.prompt_cache) this.prompt_cache = {};
+                this.prompt_cache[report_name] = prompts;
                 this.render_dialog(report_name, prompts);
             }
         });
@@ -863,10 +935,9 @@ hns_ai_assistant_app.ReportPrompt = {
             const header_row = "| " + cols.map(c => c.label).join(" | ") + " |";
             const separator_row = "| " + cols.map(() => "---").join(" | ") + " |";
 
-            const max_rows = Math.min(qr.data.length, 30);
             const data_rows = [];
 
-            for (let i = 0; i < max_rows; i++) {
+            for (let i = 0; i < qr.data.length; i++) {
                 const row = qr.data[i];
                 if (!row) continue;
 
@@ -899,9 +970,58 @@ hns_ai_assistant_app.ReportPrompt = {
         }
     },
 
+    get_report_csv_data: function (report_name) {
+        try {
+            if (!frappe.query_report || !frappe.query_report.data || !frappe.query_report.data.length) return "";
+            const qr = frappe.query_report;
+            const cols = (qr.columns || []).map((c, idx) => {
+                let label = "";
+                let fieldname = "";
+                if (typeof c === "string") {
+                    label = c.split(":")[0];
+                    fieldname = label;
+                } else if (typeof c === "object" && c !== null) {
+                    label = c.label || c.fieldname || "";
+                    fieldname = c.fieldname || c.label || "";
+                }
+                return { label, fieldname, idx };
+            }).filter(c => c.label && !c.label.startsWith("_") && c.fieldname !== "_user_tags");
+
+            if (!cols.length) return "";
+
+            const escape_csv_cell = (val) => {
+                if (val === null || val === undefined) return '""';
+                let str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+            };
+
+            const header_line = cols.map(c => escape_csv_cell(c.label)).join(",");
+            const rows = [];
+            for (let i = 0; i < qr.data.length; i++) {
+                const row = qr.data[i];
+                if (!row) continue;
+                const line = cols.map(c => {
+                    let val = "";
+                    if (Array.isArray(row)) {
+                        val = row[c.idx] !== undefined && row[c.idx] !== null ? row[c.idx] : "";
+                    } else if (typeof row === "object" && row !== null) {
+                        val = row[c.fieldname] !== undefined ? row[c.fieldname] : (row[c.label] !== undefined ? row[c.label] : "");
+                    }
+                    return escape_csv_cell(val);
+                }).join(",");
+                rows.push(line);
+            }
+            return [header_line, ...rows].join("\r\n");
+        } catch (e) {
+            console.warn("Failed to generate CSV data:", e);
+            return "";
+        }
+    },
+
     trigger_desktop_gemini: function (prompt_val, report_name) {
         const me = this;
         const full_prompt = this.build_full_prompt(prompt_val, report_name);
+        const csv_data = this.get_report_csv_data(report_name);
 
         // 1. Copy prompt and full report table to clipboard
         me.copy_to_clipboard(full_prompt);
@@ -910,7 +1030,12 @@ hns_ai_assistant_app.ReportPrompt = {
         window.postMessage({
             type: "HNS_OPEN_GEMINI_SIDEPANEL",
             prompt: full_prompt,
-            report_name: report_name
+            report_name: report_name,
+            attachment: csv_data ? {
+                filename: `${(report_name || "Report").replace(/[^a-zA-Z0-9_-]/g, "_")}.csv`,
+                content: csv_data,
+                mime_type: "text/csv"
+            } : null
         }, "*");
 
         const is_extension_installed = document.documentElement.getAttribute("data-gemini-sidepanel-installed") === "true";

@@ -44,11 +44,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
         }
 
-        if (message.prompt) {
+        if (message.prompt || message.attachment) {
             chrome.storage.local.set({
-                lastPrompt: message.prompt,
+                lastPrompt: message.prompt || "",
+                lastAttachment: message.attachment || null,
                 timestamp: Date.now(),
-                pendingAutoPost: message.prompt,
+                pendingAutoPost: message.prompt || "",
+                pendingAttachment: message.attachment || null,
                 pendingTimestamp: Date.now()
             });
         }

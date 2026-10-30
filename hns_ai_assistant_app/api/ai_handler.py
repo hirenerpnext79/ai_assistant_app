@@ -317,3 +317,36 @@ def get_report_prompts(report_name):
     except Exception as e:
         frappe.log_error(title="get_report_prompts Error", message=str(e))
         return []
+
+
+@frappe.whitelist()
+def download_chrome_extension():
+    try:
+        import io
+        import os
+        import zipfile
+
+        app_path = frappe.get_app_path("hns_ai_assistant_app")
+        extension_dir = os.path.abspath(os.path.join(app_path, "..", "chrome_extension"))
+        if not os.path.exists(extension_dir):
+            frappe.throw(_("Chrome extension folder not found at {0}").format(extension_dir))
+
+        folder_name = "ask_gemini_extension"
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for root, dirs, files in os.walk(extension_dir):
+                dirs[:] = [d for d in dirs if d not in ("_metadata", ".git", "__pycache__")]
+                for file in files:
+                    if file.endswith((".pyc", ".DS_Store")):
+                        continue
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, extension_dir)
+                    arcname = os.path.join(folder_name, rel_path)
+                    zip_file.write(file_path, arcname)
+
+        frappe.response["filename"] = "ask_gemini_chrome_extension.zip"
+        frappe.response["filecontent"] = zip_buffer.getvalue()
+        frappe.response["type"] = "download"
+    except Exception as e:
+        frappe.log_error(title="download_chrome_extension Error", message=str(e))
+        frappe.throw(str(e))
