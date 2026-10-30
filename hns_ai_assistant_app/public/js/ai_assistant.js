@@ -356,6 +356,50 @@ hns_ai_assistant_app.Assistant = {
         this.panel.classList.remove("active");
     },
 
+    open_panel: function () {
+        if (!this.panel) return;
+        if (!this.panel.classList.contains("active")) {
+            this.toggle_panel();
+        }
+    },
+
+    set_provider: function (provider_id) {
+        if (!provider_id) return;
+        this.selected_provider = provider_id;
+        const options_container = document.getElementById("ask-akansha-select-options");
+        const selected_text = document.getElementById("ask-akansha-selected-text");
+        if (options_container && selected_text) {
+            options_container.querySelectorAll(".aak-select-option").forEach(o => {
+                if (o.getAttribute("data-value") === provider_id) {
+                    o.classList.add("selected");
+                    selected_text.textContent = o.textContent.trim();
+                } else {
+                    o.classList.remove("selected");
+                }
+            });
+        }
+    },
+
+    ask_prompt: function (prompt_text, provider_override) {
+        if (!prompt_text) return;
+        this.open_panel();
+
+        if (provider_override) {
+            this.set_provider(provider_override);
+        } else if (this.allowed_providers && this.allowed_providers.length > 0) {
+            const gemini = this.allowed_providers.find(p =>
+                (p.provider_name || p.name || "").toLowerCase().includes("gemini")
+            );
+            if (gemini) {
+                this.set_provider(gemini.name);
+            }
+        }
+
+        setTimeout(() => {
+            this.send_message(prompt_text);
+        }, 150);
+    },
+
     set_processing: function (processing) {
         this.is_processing = processing;
         this.input.disabled = processing;
@@ -392,14 +436,14 @@ hns_ai_assistant_app.Assistant = {
         if (el) el.remove();
     },
 
-    send_message: function () {
+    send_message: function (custom_text) {
         if (this.is_processing) return;
 
-        const text = this.input.value.trim();
+        const text = (custom_text !== undefined ? custom_text : (this.input ? this.input.value : "")).trim();
         if (!text) return;
 
         this.add_message_to_dom(text, "user");
-        this.input.value = "";
+        if (this.input) this.input.value = "";
         const qq_wrap = document.getElementById("aak-quick-questions-wrapper");
         if (qq_wrap) qq_wrap.style.display = "none";
 
@@ -547,8 +591,548 @@ hns_ai_assistant_app.Assistant = {
     }
 };
 
+hns_ai_assistant_app.ReportPrompt = {
+    prompt_cache: {},
+
+    init: function () {
+        this.setup_query_report_interceptor();
+        this.bind_route_events();
+    },
+
+    setup_query_report_interceptor: function () {
+        const me = this;
+        if (frappe.views && frappe.views.QueryReport) {
+            me.patch_query_report(frappe.views.QueryReport);
+        }
+
+        if (frappe.views) {
+            let _qr = frappe.views.QueryReport;
+            try {
+                Object.defineProperty(frappe.views, "QueryReport", {
+                    configurable: true,
+                    enumerable: true,
+                    get: function () {
+                        return _qr;
+                    },
+                    set: function (val) {
+                        _qr = val;
+                        me.patch_query_report(val);
+                    }
+                });
+            } catch (e) {
+                // Ignore if property is non-configurable
+            }
+        }
+    },
+
+    patch_query_report: function (QueryReportClass) {
+        if (!QueryReportClass || QueryReportClass._hns_report_prompt_patched) return;
+        QueryReportClass._hns_report_prompt_patched = true;
+
+        const original_load_report = QueryReportClass.prototype.load_report;
+        const me = this;
+
+        QueryReportClass.prototype.load_report = function (route_options) {
+            const res = original_load_report.apply(this, arguments);
+            const report_inst = this;
+            if (res && res.then) {
+                res.then(() => {
+                    setTimeout(() => me.attach_button(report_inst), 100);
+                });
+            } else {
+                setTimeout(() => me.attach_button(report_inst), 100);
+            }
+            return res;
+        };
+
+        const original_refresh = QueryReportClass.prototype.refresh;
+        QueryReportClass.prototype.refresh = function () {
+            const res = original_refresh.apply(this, arguments);
+            const report_inst = this;
+            setTimeout(() => me.attach_button(report_inst), 100);
+            return res;
+        };
+    },
+
+    bind_route_events: function () {
+        const me = this;
+        frappe.router.on("change", () => {
+            const route = frappe.get_route ? frappe.get_route() : [];
+            if (route[0] === "query-report" || route[0] === "report") {
+                const r_name = route[1];
+                if (r_name && me.prompt_cache) {
+                    delete me.prompt_cache[r_name];
+                }
+            }
+            setTimeout(() => me.check_and_attach(), 300);
+            setTimeout(() => me.check_and_attach(), 800);
+            setTimeout(() => me.check_and_attach(), 1500);
+        });
+
+        $(document).on("ajaxComplete", () => {
+            me.check_and_attach();
+        });
+    },
+
+    check_and_attach: function () {
+        const route = frappe.get_route ? frappe.get_route() : [];
+        if (!route || !route.length) return;
+
+        if (route[0] === "query-report" && frappe.query_report) {
+            this.attach_button(frappe.query_report);
+        } else if (route[0] === "report" && window.cur_list && window.cur_list.page) {
+            this.attach_button_to_page(window.cur_list.page, route[1]);
+        }
+    },
+
+    attach_button: function (report_instance) {
+        if (!report_instance || !report_instance.page || !report_instance.page.inner_toolbar) return;
+        const report_name = report_instance.report_name || (frappe.get_route ? frappe.get_route()[1] : null);
+        if (!report_name) return;
+        this.attach_button_to_page(report_instance.page, report_name);
+    },
+
+    attach_button_to_page: function (page, report_name) {
+        if (!page || !page.inner_toolbar || !report_name) return;
+
+        const $toolbar = $(page.inner_toolbar);
+        const existing_btn = $toolbar.find(".hns-report-prompt-btn");
+        if (existing_btn.length && existing_btn.attr("data-report") === report_name) {
+            return;
+        }
+
+        if ($toolbar.data("hns-loading-report") === report_name) {
+            return;
+        }
+
+        if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
+            this.render_toolbar_button($toolbar, report_name, this.prompt_cache[report_name]);
+            return;
+        }
+
+        $toolbar.data("hns-loading-report", report_name);
+
+        frappe.call({
+            method: "hns_ai_assistant_app.api.ai_handler.get_report_prompts",
+            args: { report_name: report_name },
+            callback: (r) => {
+                $toolbar.removeData("hns-loading-report");
+                const prompts = r.message || [];
+                if (!this.prompt_cache) this.prompt_cache = {};
+                this.prompt_cache[report_name] = prompts;
+                this.render_toolbar_button($toolbar, report_name, prompts);
+            },
+            error: () => {
+                $toolbar.removeData("hns-loading-report");
+            }
+        });
+    },
+
+    render_toolbar_button: function ($toolbar, report_name, prompts) {
+        $toolbar.find(".hns-report-prompt-btn").remove();
+
+        let $btn;
+        if (prompts && prompts.length > 0) {
+            $btn = $(`
+                <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-free-ai-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Ask Gemini" title="${__("Ask Gemini about {0}", [report_name])}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    <span>${__("Ask Gemini")}</span>
+                </button>
+            `);
+
+            $btn.on("click", (e) => {
+                e.preventDefault();
+                this.render_dialog(report_name, prompts);
+            });
+        } else {
+            $btn = $(`
+                <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-add-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Add Prompt" title="${__("Add Prompt for {0}", [report_name])}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>${__("Add Prompt")}</span>
+                </button>
+            `);
+
+            $btn.on("click", (e) => {
+                e.preventDefault();
+                delete this.prompt_cache[report_name];
+                if (e.ctrlKey || e.metaKey) {
+                    window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
+                } else {
+                    frappe.new_doc("HNS AI Assistant App Prompt", { report: report_name });
+                }
+            });
+        }
+
+        const $actions = $toolbar.find('.inner-group-button[data-label="Actions"], .inner-group-button');
+        if ($actions.length) {
+            $btn.insertBefore($actions.first());
+        } else {
+            $toolbar.append($btn);
+        }
+        $toolbar.removeClass("hide");
+    },
+
+    open_prompt_dialog: function (report_name) {
+        if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
+            this.render_dialog(report_name, this.prompt_cache[report_name]);
+            return;
+        }
+
+        frappe.call({
+            method: "hns_ai_assistant_app.api.ai_handler.get_report_prompts",
+            args: { report_name: report_name },
+            freeze: true,
+            freeze_message: __("Loading AI Prompts..."),
+            callback: (r) => {
+                const prompts = r.message || [];
+                if (!this.prompt_cache) this.prompt_cache = {};
+                this.prompt_cache[report_name] = prompts;
+                this.render_dialog(report_name, prompts);
+            }
+        });
+    },
+
+    render_dialog: function (report_name, prompts) {
+        let selected_prompt_text = prompts.length > 0 ? prompts[0].prompt : "";
+
+        let prompt_cards_html = "";
+        if (prompts.length > 0) {
+            prompt_cards_html = `
+                <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    ${__("Available Prompts ({0})", [prompts.length])}
+                </div>
+                <div class="hns-prompt-list">
+                    ${prompts.map((p, idx) => `
+                        <div class="hns-prompt-card ${idx === 0 ? 'selected' : ''}" data-idx="${idx}">
+                            <div class="hns-prompt-radio"></div>
+                            <div class="hns-prompt-text-preview">${frappe.utils.escape_html(p.prompt)}</div>
+                        </div>
+                    `).join("")}
+                </div>
+            `;
+        } else {
+            prompt_cards_html = `
+                <div style="padding: 16px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">
+                        ${__("No prompts configured for report: <b>{0}</b>", [report_name])}
+                    </div>
+                    <a href="/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}" target="_blank" class="btn btn-xs btn-default" style="display: inline-flex; align-items: center; gap: 4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        ${__("Add New Prompt for this Report")}
+                    </a>
+                </div>
+            `;
+        }
+
+        const dialog_html = `
+            <div class="hns-prompt-dialog-body">
+                ${prompt_cards_html}
+
+                <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <label style="font-size: 12px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; margin: 0;">
+                            ${__("Prompt to Ask (Editable)")}
+                        </label>
+                        <span style="font-size: 11px; color: #9ca3af;">${__("You can modify the prompt before submitting")}</span>
+                    </div>
+                    <textarea class="hns-prompt-textarea" id="hns-prompt-editor" placeholder="${__("Type or select a prompt...")}">${frappe.utils.escape_html(selected_prompt_text)}</textarea>
+                </div>
+            </div>
+        `;
+
+        const dialog = new frappe.ui.Dialog({
+            title: `<div style="display:flex; align-items:center; gap:8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+                <span>${__("Ask Gemini - {0}", [report_name])}</span>
+            </div>`,
+            size: "large",
+            fields: [
+                {
+                    fieldtype: "HTML",
+                    fieldname: "prompt_html",
+                    options: dialog_html
+                }
+            ],
+            primary_action_label: __("✨ Ask Gemini (with Screen Data)"),
+            primary_action: () => {
+                const prompt_val = dialog.$wrapper.find("#hns-prompt-editor").val().trim();
+                if (!prompt_val) {
+                    frappe.show_alert({ message: __("Please select or enter a prompt."), indicator: "orange" });
+                    return;
+                }
+
+                dialog.hide();
+                this.trigger_desktop_gemini(prompt_val, report_name);
+            }
+        });
+
+        dialog.add_custom_action(__("Copy Only"), () => {
+            const prompt_val = dialog.$wrapper.find("#hns-prompt-editor").val().trim();
+            if (prompt_val) {
+                const full_prompt = this.build_full_prompt(prompt_val, report_name);
+                this.copy_to_clipboard(full_prompt);
+                frappe.show_alert({ message: __("Prompt + Report Screen Data copied!"), indicator: "green" });
+                dialog.hide();
+            }
+        });
+
+        dialog.show();
+
+        // Bind prompt card selection
+        dialog.$wrapper.find(".hns-prompt-card").on("click", function () {
+            dialog.$wrapper.find(".hns-prompt-card").removeClass("selected");
+            $(this).addClass("selected");
+            const idx = parseInt($(this).attr("data-idx"), 10);
+            if (prompts[idx]) {
+                dialog.$wrapper.find("#hns-prompt-editor").val(prompts[idx].prompt);
+            }
+        });
+    },
+
+    build_full_prompt: function (prompt_val, report_name) {
+        const context = this.get_report_screen_context(report_name);
+        return context ? `${prompt_val}\n\n${context}` : prompt_val;
+    },
+
+    get_report_screen_context: function (report_name) {
+        try {
+            if (!frappe.query_report) return "";
+            const qr = frappe.query_report;
+            if (!qr.data || !qr.data.length) return "";
+
+            const filters = qr.get_filter_values ? qr.get_filter_values() : {};
+            const filter_entries = Object.entries(filters)
+                .filter(([k, v]) => v !== null && v !== undefined && v !== "" && v !== false)
+                .map(([k, v]) => `${k}: ${v}`);
+
+            const all_cols = qr.columns || [];
+            const cols = all_cols
+                .map((c, original_idx) => {
+                    let label = "";
+                    let fieldname = "";
+                    if (typeof c === "string") {
+                        const parts = c.split(":");
+                        label = parts[0];
+                        fieldname = parts[0];
+                    } else if (typeof c === "object" && c !== null) {
+                        label = c.label || c.fieldname || "";
+                        fieldname = c.fieldname || c.label || "";
+                    }
+                    return { label, fieldname, idx: original_idx };
+                })
+                .filter(c => c.label && !c.label.startsWith("_") && c.fieldname !== "_user_tags")
+                .slice(0, 8);
+
+            if (!cols.length) return "";
+
+            const header_row = "| " + cols.map(c => c.label).join(" | ") + " |";
+            const separator_row = "| " + cols.map(() => "---").join(" | ") + " |";
+
+            const data_rows = [];
+
+            for (let i = 0; i < qr.data.length; i++) {
+                const row = qr.data[i];
+                if (!row) continue;
+
+                const cells = cols.map(c => {
+                    let val = "";
+                    if (Array.isArray(row)) {
+                        val = row[c.idx] !== undefined && row[c.idx] !== null ? row[c.idx] : "";
+                    } else if (typeof row === "object" && row !== null) {
+                        val = row[c.fieldname] !== undefined ? row[c.fieldname] : (row[c.label] !== undefined ? row[c.label] : "");
+                    }
+                    if (val === null || val === undefined) val = "";
+                    if (typeof val === "number") val = Number(val).toLocaleString();
+                    val = String(val).replace(/\|/g, "/").replace(/[\r\n]+/g, " ").trim();
+                    return val.length > 30 ? val.substring(0, 27) + "..." : val;
+                });
+                data_rows.push("| " + cells.join(" | ") + " |");
+            }
+
+            let context_md = `--- 📊 REPORT SCREEN DATA (${qr.data.length} total rows) ---\n`;
+            context_md += `Report: ${report_name || qr.report_name || "Query Report"}\n`;
+            if (filter_entries.length) {
+                context_md += `Active Filters: ${filter_entries.join(", ")}\n`;
+            }
+            context_md += `\n${header_row}\n${separator_row}\n${data_rows.join("\n")}\n`;
+            context_md += `--------------------------------------------------`;
+            return context_md;
+        } catch (e) {
+            console.warn("Failed to extract report context:", e);
+            return "";
+        }
+    },
+
+    get_report_csv_data: function (report_name) {
+        try {
+            if (!frappe.query_report || !frappe.query_report.data || !frappe.query_report.data.length) return "";
+            const qr = frappe.query_report;
+            const cols = (qr.columns || []).map((c, idx) => {
+                let label = "";
+                let fieldname = "";
+                if (typeof c === "string") {
+                    label = c.split(":")[0];
+                    fieldname = label;
+                } else if (typeof c === "object" && c !== null) {
+                    label = c.label || c.fieldname || "";
+                    fieldname = c.fieldname || c.label || "";
+                }
+                return { label, fieldname, idx };
+            }).filter(c => c.label && !c.label.startsWith("_") && c.fieldname !== "_user_tags");
+
+            if (!cols.length) return "";
+
+            const escape_csv_cell = (val) => {
+                if (val === null || val === undefined) return '""';
+                let str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+            };
+
+            const header_line = cols.map(c => escape_csv_cell(c.label)).join(",");
+            const rows = [];
+            for (let i = 0; i < qr.data.length; i++) {
+                const row = qr.data[i];
+                if (!row) continue;
+                const line = cols.map(c => {
+                    let val = "";
+                    if (Array.isArray(row)) {
+                        val = row[c.idx] !== undefined && row[c.idx] !== null ? row[c.idx] : "";
+                    } else if (typeof row === "object" && row !== null) {
+                        val = row[c.fieldname] !== undefined ? row[c.fieldname] : (row[c.label] !== undefined ? row[c.label] : "");
+                    }
+                    return escape_csv_cell(val);
+                }).join(",");
+                rows.push(line);
+            }
+            return [header_line, ...rows].join("\r\n");
+        } catch (e) {
+            console.warn("Failed to generate CSV data:", e);
+            return "";
+        }
+    },
+
+    trigger_desktop_gemini: function (prompt_val, report_name) {
+        const me = this;
+        const full_prompt = this.build_full_prompt(prompt_val, report_name);
+        const csv_data = this.get_report_csv_data(report_name);
+
+        // 1. Copy prompt and full report table to clipboard
+        me.copy_to_clipboard(full_prompt);
+
+        // 2. Dispatch custom event to Chrome Extension to open the native Side Panel
+        window.postMessage({
+            type: "HNS_OPEN_GEMINI_SIDEPANEL",
+            prompt: full_prompt,
+            report_name: report_name,
+            attachment: csv_data ? {
+                filename: `${(report_name || "Report").replace(/[^a-zA-Z0-9_-]/g, "_")}.csv`,
+                content: csv_data,
+                mime_type: "text/csv"
+            } : null
+        }, "*");
+
+        const is_extension_installed = document.documentElement.getAttribute("data-gemini-sidepanel-installed") === "true";
+
+        if (is_extension_installed) {
+            frappe.show_alert({
+                message: __("✨ Gemini Side Panel opened with report data!"),
+                indicator: "green"
+            }, 4);
+        } else {
+            const sw = window.screen.availWidth || 1366;
+            const sh = window.screen.availHeight || 768;
+            const sidebar_w = Math.min(500, Math.max(420, Math.floor(sw * 0.38)));
+            const sidebar_h = Math.max(580, sh - 60);
+            const pos_x = Math.max(0, sw - sidebar_w - 10);
+            const pos_y = 30;
+            const gemini_url = "https://gemini.google.com/app";
+
+            window.open(
+                gemini_url,
+                "GeminiSidebar",
+                `width=${sidebar_w},height=${sidebar_h},top=${pos_y},left=${pos_x},resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`
+            );
+
+            frappe.show_alert({
+                message: __("✨ Gemini window opened! Auto-pasting report screen data..."),
+                indicator: "green"
+            }, 4);
+        }
+    },
+
+    copy_to_clipboard: function (text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(() => {
+                this.fallback_copy(text);
+            });
+        } else {
+            this.fallback_copy(text);
+        }
+    },
+
+    fallback_copy: function (text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand("copy");
+        } catch (e) {
+            // ignore
+        }
+        document.body.removeChild(ta);
+    },
+
+    show_gemini_guide: function (report_name, prompt) {
+        $(".hns-gemini-guide").remove();
+
+        const guide = $(`
+            <div class="hns-gemini-guide">
+                <div class="hns-guide-header">
+                    <div class="hns-guide-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                        </svg>
+                        <span>${__("Prompt Copied to Clipboard!")}</span>
+                    </div>
+                </div>
+                <div class="hns-guide-content">
+                    <p style="margin: 0 0 6px 0;">
+                        ${__("Prompt copied to clipboard. You can paste it into Gemini (<kbd class='hns-guide-kbd'>Ctrl + V</kbd>).")}
+                    </p>
+                </div>
+                <div class="hns-guide-dismiss">
+                    <button type="button" class="btn-guide-close">${__("Got it!")}</button>
+                </div>
+            </div>
+        `);
+
+        guide.find(".btn-guide-close").on("click", () => {
+            guide.fadeOut(200, () => guide.remove());
+        });
+
+        $("body").append(guide);
+
+        setTimeout(() => {
+            if (guide.length && guide.parent().length) {
+                guide.fadeOut(500, () => guide.remove());
+            }
+        }, 5000);
+    }
+};
+
 $(document).ready(function () {
-    // Stop execution on the first line if the user doesn't have permission to read the settings
+    hns_ai_assistant_app.ReportPrompt.init();
+
     if (frappe.boot && frappe.boot.user && frappe.boot.user.can_read && 
         !frappe.boot.user.can_read.includes("Hns AI Assistant App Setting")) {
         return;
@@ -556,9 +1140,3 @@ $(document).ready(function () {
     
     hns_ai_assistant_app.Assistant.init();
 });
-
-
-
-
-
-
