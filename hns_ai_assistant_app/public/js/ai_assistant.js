@@ -728,6 +728,28 @@ hns_ai_assistant_app.ReportPrompt = {
         });
     },
 
+    has_report_data: function () {
+        if (frappe.query_report && frappe.query_report.data && frappe.query_report.data.length > 0) {
+            return true;
+        }
+        if (window.cur_list && window.cur_list.data && window.cur_list.data.length > 0) {
+            return true;
+        }
+        return false;
+    },
+
+    notify_no_data: function () {
+        frappe.msgprint({
+            title: __("Data Not Available"),
+            indicator: "orange",
+            message: __("Data is not available. Please run the report first.")
+        });
+        frappe.show_alert({
+            message: __("Data is not available. Please run the report first."),
+            indicator: "orange"
+        });
+    },
+
     render_toolbar_button: function ($toolbar, report_name, prompts) {
         $toolbar.find(".hns-report-prompt-btn").remove();
 
@@ -744,6 +766,10 @@ hns_ai_assistant_app.ReportPrompt = {
 
             $btn.on("click", (e) => {
                 e.preventDefault();
+                if (!this.has_report_data()) {
+                    this.notify_no_data();
+                    return;
+                }
                 this.render_dialog(report_name, prompts);
             });
         } else {
@@ -778,6 +804,11 @@ hns_ai_assistant_app.ReportPrompt = {
     },
 
     open_prompt_dialog: function (report_name) {
+        if (!this.has_report_data()) {
+            this.notify_no_data();
+            return;
+        }
+
         if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
             this.render_dialog(report_name, this.prompt_cache[report_name]);
             return;
@@ -862,6 +893,11 @@ hns_ai_assistant_app.ReportPrompt = {
             ],
             primary_action_label: __("✨ Ask Gemini (with Screen Data)"),
             primary_action: () => {
+                if (!this.has_report_data()) {
+                    this.notify_no_data();
+                    return;
+                }
+
                 const prompt_val = dialog.$wrapper.find("#hns-prompt-editor").val().trim();
                 if (!prompt_val) {
                     frappe.show_alert({ message: __("Please select or enter a prompt."), indicator: "orange" });
@@ -874,6 +910,11 @@ hns_ai_assistant_app.ReportPrompt = {
         });
 
         dialog.add_custom_action(__("Copy Only"), () => {
+            if (!this.has_report_data()) {
+                this.notify_no_data();
+                return;
+            }
+
             const prompt_val = dialog.$wrapper.find("#hns-prompt-editor").val().trim();
             if (prompt_val) {
                 const full_prompt = this.build_full_prompt(prompt_val, report_name);
@@ -1019,6 +1060,11 @@ hns_ai_assistant_app.ReportPrompt = {
     },
 
     trigger_desktop_gemini: function (prompt_val, report_name) {
+        if (!this.has_report_data()) {
+            this.notify_no_data();
+            return;
+        }
+
         const me = this;
         const full_prompt = this.build_full_prompt(prompt_val, report_name);
         const csv_data = this.get_report_csv_data(report_name);
