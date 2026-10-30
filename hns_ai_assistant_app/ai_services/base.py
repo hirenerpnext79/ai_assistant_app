@@ -146,7 +146,6 @@ class BaseAIService:
         return tools_manager, system_prompt, tool_schema
 
     def _execute_tool(self, function_name, args, tools_manager, messages_for_logging=None, enable_context=None, user_query=None):
-        """Execute a tool and return the result dictionary or log an error if it fails."""
         if function_name == "query_erpnext_data":
             tool_result = tools_manager.query_erpnext_data(
                 doctype=args.get('doctype', ''),
@@ -157,6 +156,7 @@ class BaseAIService:
                 limit=args.get('limit'),
                 offset=args.get('offset', 0),
                 sum_field=args.get('sum_field'),
+                group_by=args.get('group_by'),
             )
             
             if type(tool_result) is dict and "error" in tool_result:
