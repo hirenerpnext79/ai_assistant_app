@@ -6,7 +6,7 @@ from frappe.utils import today
 SETTINGS_DOCTYPE = "Hns AI Assistant App Setting"
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 AGGREGATE_FIELD_PATTERN = re.compile(
-    r"^(sum|count|avg|min|max)\s*\(\s*`?([a-zA-Z0-9_*]+)`?\s*\)(?:\s+as\s+`?([a-zA-Z0-9_]+)`?)?$",
+    r"^(sum|count|avg|min|max|month|monthname|year|quarter|day|week|date)\s*\(\s*`?([a-zA-Z0-9_*]+)`?\s*\)(?:\s+as\s+`?([a-zA-Z0-9_]+)`?)?$",
     re.IGNORECASE
 )
 
@@ -53,7 +53,7 @@ class ERPNextTools:
             self._validate_sum_operation(operation, sum_field, valid_fields, doctype)
 
             parsed_filters = self._prepare_filters(filters, valid_fields, doctype)
-            safe_group_by = self._validate_group_by(group_by, valid_fields, doctype)
+            safe_group_by = self._validate_group_by(group_by, valid_fields, doctype, allowed_aliases)
             safe_order_by = self._prepare_order_by(order_by, valid_fields, doctype, allowed_aliases, operation, parsed_filters)
 
             meta = frappe.get_meta(doctype)
@@ -67,7 +67,7 @@ class ERPNextTools:
                 data = self._query_list(doctype, safe_fields, parsed_filters, safe_order_by, safe_group_by, limit, offset)
 
             data = json.loads(frappe.as_json(data))
-            final_sql_query = (frappe.db.last_query or "").strip()
+            final_sql_query = (getattr(frappe.db, "last_query", None) or "").strip()
 
             captured_entry = {
                 "doctype": doctype,
@@ -83,7 +83,7 @@ class ERPNextTools:
 
         except Exception as e:
             error_msg = str(e)
-            final_sql_query = (frappe.db.last_query or "").strip()
+            final_sql_query = (getattr(frappe.db, "last_query", None) or "").strip()
             self.captured_data.append({
                 "doctype": doctype,
                 "error": error_msg,
@@ -220,19 +220,36 @@ class ERPNextTools:
 
         return safe_fields, allowed_aliases
 
-    def _validate_group_by(self, group_by, valid_fields, doctype):
+    def _validate_group_by(self, group_by, valid_fields, doctype, allowed_aliases=None):
         if not group_by:
             return None
+
+        combined_valid = set(valid_fields)
+        if allowed_aliases:
+            combined_valid.update(allowed_aliases)
 
         cleaned_fields = []
         raw_clauses = [c.strip() for c in str(group_by).split(",") if c.strip()]
 
         for item in raw_clauses:
-            field = item.strip("` \t\r\n").split(".")[-1].strip("`")
-            if not field or field not in valid_fields:
+            stripped = item.strip("` \t\r\n")
+            agg_match = AGGREGATE_FIELD_PATTERN.match(stripped)
+            if agg_match:
+                func_name = agg_match.group(1).lower()
+                inner_field = agg_match.group(2).strip("`")
+                if inner_field != "*" and inner_field not in valid_fields:
+                    raise ValueError(
+                        f"Invalid field '{inner_field}' in group_by '{item}' for DocType '{doctype}'. "
+                        f"Available fields: {sorted(valid_fields)}"
+                    )
+                cleaned_fields.append(f"{func_name}({inner_field})")
+                continue
+
+            field = stripped.split(".")[-1].strip("`")
+            if not field or field not in combined_valid:
                 raise ValueError(
                     f"Invalid group_by field '{field or item}' for DocType '{doctype}'. "
-                    f"Available fields: {sorted(valid_fields)}"
+                    f"Available fields: {sorted(combined_valid)}"
                 )
             cleaned_fields.append(field)
 

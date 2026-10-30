@@ -544,6 +544,24 @@ hns_ai_assistant_app.Assistant = {
             }
         });
 
+        const ol_list = temp.querySelectorAll("ol");
+        if (ol_list.length > 1) {
+            let running_index = 0;
+            ol_list.forEach((ol, idx) => {
+                if (idx === 0) {
+                    running_index = ol.querySelectorAll(":scope > li").length;
+                } else {
+                    let prev = ol.previousElementSibling;
+                    if (prev && (prev.tagName === "UL" || prev.tagName === "OL" || prev.tagName === "P" || prev.tagName === "DIV")) {
+                        ol.setAttribute("start", running_index + 1);
+                        running_index += ol.querySelectorAll(":scope > li").length;
+                    } else {
+                        running_index = ol.querySelectorAll(":scope > li").length;
+                    }
+                }
+            });
+        }
+
         return temp.innerHTML;
     },
 
