@@ -5,3 +5,4 @@
 tags
 node_modules
 __pycache__
+chrome_extension/_metadata/
