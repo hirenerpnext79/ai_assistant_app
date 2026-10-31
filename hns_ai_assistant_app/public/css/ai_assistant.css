@@ -828,6 +828,18 @@
     transform: scale(1.15) rotate(5deg);
 }
 
+.hns-dialog-add-prompt-btn {
+    font-size: 12px;
+    padding: 4px 10px !important;
+    white-space: nowrap;
+}
+
+.modal-header .modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .hns-prompt-dialog-body {
     display: flex;
     flex-direction: column;

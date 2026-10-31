@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestHNSAIAssistantAppPrompt(FrappeTestCase):
+class TestHnsAIReportPrompt(FrappeTestCase):
 	pass

@@ -807,7 +807,7 @@ hns_ai_assistant_app.ReportPrompt = {
                 if (e.ctrlKey || e.metaKey) {
                     window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
                 } else {
-                    frappe.new_doc("HNS AI Assistant App Prompt", { report: report_name });
+                    frappe.new_doc("Hns AI Report Prompt", { report: report_name });
                 }
             });
         }
@@ -944,6 +944,44 @@ hns_ai_assistant_app.ReportPrompt = {
 
         dialog.show();
 
+        const $modal_actions = dialog.$wrapper.find(".modal-header .modal-actions");
+        if ($modal_actions.length) {
+            $modal_actions.css({
+                "display": "flex",
+                "align-items": "center",
+                "gap": "6px"
+            });
+        }
+
+        const $add_prompt_btn = $(`
+            <button type="button" class="btn btn-xs hns-add-prompt-btn hns-dialog-add-prompt-btn" style="margin-right: 4px;" title="${__("Add Prompt for {0}", [report_name])}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>${__("Add Prompt")}</span>
+            </button>
+        `);
+
+        const $close_btn = dialog.$wrapper.find(".modal-header .btn-modal-close, .modal-header [data-dismiss='modal']");
+        if ($close_btn.length) {
+            $close_btn.before($add_prompt_btn);
+        } else if ($modal_actions.length) {
+            $modal_actions.append($add_prompt_btn);
+        } else {
+            dialog.$wrapper.find(".modal-header").append($add_prompt_btn);
+        }
+
+        $add_prompt_btn.on("click", (e) => {
+            e.preventDefault();
+            if (e.ctrlKey || e.metaKey) {
+                delete this.prompt_cache[report_name];
+                window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
+                return;
+            }
+            this.prompt_new_dialog(report_name, dialog);
+        });
+
         // Bind prompt card selection
         dialog.$wrapper.find(".hns-prompt-card").on("click", function () {
             dialog.$wrapper.find(".hns-prompt-card").removeClass("selected");
@@ -953,6 +991,106 @@ hns_ai_assistant_app.ReportPrompt = {
                 dialog.$wrapper.find("#hns-prompt-editor").val(prompts[idx].prompt);
             }
         });
+    },
+
+    prompt_new_dialog: function (report_name, parent_dialog) {
+        const d = new frappe.ui.Dialog({
+            title: `<div style="display:flex; align-items:center; gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>${__("Add Prompt - {0}", [report_name])}</span>
+            </div>`,
+            fields: [
+                {
+                    fieldname: "report",
+                    fieldtype: "Link",
+                    options: "Report",
+                    label: __("Report"),
+                    default: report_name,
+                    read_only: 1
+                },
+                {
+                    fieldname: "prompt",
+                    fieldtype: "Small Text",
+                    label: __("Prompt"),
+                    description: __("Enter the reusable AI analysis prompt for this report.")
+                }
+            ],
+            primary_action_label: __("Save Prompt"),
+            primary_action: () => {
+                const prompt_input = d.fields_dict.prompt;
+                const prompt_text = (prompt_input ? prompt_input.get_value() : "").trim();
+
+                if (!prompt_text) {
+                    show_prompt_error(__("Prompt is required. Please enter a prompt."));
+                    return;
+                }
+                clear_prompt_error();
+
+                frappe.call({
+                    method: "hns_ai_assistant_app.api.ai_handler.add_report_prompt",
+                    args: {
+                        report_name: report_name,
+                        prompt: prompt_text
+                    },
+                    freeze: true,
+                    freeze_message: __("Saving Prompt..."),
+                    callback: (r) => {
+                        if (!r.exc) {
+                            frappe.show_alert({ message: __("Prompt added successfully!"), indicator: "green" });
+                            if (this.prompt_cache) {
+                                delete this.prompt_cache[report_name];
+                            }
+                            d.hide();
+                            if (parent_dialog) {
+                                parent_dialog.hide();
+                            }
+                            this.open_prompt_dialog(report_name);
+                        }
+                    }
+                });
+            }
+        });
+
+        const $prompt_wrapper = d.fields_dict.prompt.$wrapper;
+        const $prompt_textarea = $prompt_wrapper.find("textarea");
+
+        $prompt_wrapper.find("label.control-label").append(' <span class="text-danger">*</span>');
+
+        const clear_prompt_error = () => {
+            $prompt_wrapper.find(".hns-dialog-error-msg").remove();
+            $prompt_textarea.css({
+                "border-color": "",
+                "box-shadow": ""
+            });
+        };
+
+        const show_prompt_error = (msg) => {
+            clear_prompt_error();
+            $prompt_textarea.css({
+                "border-color": "#ef4444",
+                "box-shadow": "0 0 0 1px #ef4444"
+            });
+            $prompt_wrapper.append(`
+                <div class="hns-dialog-error-msg" style="color: #ef4444; font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>${frappe.utils.escape_html(msg)}</span>
+                </div>
+            `);
+            $prompt_textarea.focus();
+        };
+
+        $prompt_textarea.on("input keyup change", () => {
+            clear_prompt_error();
+        });
+
+        d.show();
     },
 
     build_full_prompt: function (prompt_val, report_name) {

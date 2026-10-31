@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class HNSAIAssistantAppPrompt(Document):
+class HnsAIReportPrompt(Document):
 	pass

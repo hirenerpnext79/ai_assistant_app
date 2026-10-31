@@ -310,7 +310,7 @@ def get_report_prompts(report_name):
         return []
     try:
         return frappe.get_all(
-            "HNS AI Assistant App Prompt",
+            "Hns AI Report Prompt",
             filters={"report": report_name, "is_active": 1},
             fields=["name", "report", "prompt"],
             order_by="creation asc",
@@ -319,6 +319,25 @@ def get_report_prompts(report_name):
     except Exception as e:
         frappe.log_error(title="get_report_prompts Error", message=str(e))
         return []
+
+
+@frappe.whitelist()
+def add_report_prompt(report_name, prompt):
+    if not report_name or not prompt:
+        frappe.throw(frappe._("Report and prompt are required."))
+    try:
+        doc = frappe.get_doc({
+            "doctype": "Hns AI Report Prompt",
+            "report": report_name,
+            "prompt": prompt.strip(),
+            "is_active": 1,
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return doc.as_dict()
+    except Exception as e:
+        frappe.log_error(title="add_report_prompt Error", message=str(e))
+        frappe.throw(frappe._("Could not save prompt: {0}").format(str(e)))
 
 
 @frappe.whitelist()

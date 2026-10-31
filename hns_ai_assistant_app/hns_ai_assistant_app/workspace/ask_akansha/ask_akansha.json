@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"veRIX_72jo\",\"type\":\"card\",\"data\":{\"card_name\":\"Ask Akansha Setting\",\"col\":4}}]",
+ "content": "[{\"id\":\"veRIX_72jo\",\"type\":\"card\",\"data\":{\"card_name\":\"Ask Akansha Setting\",\"col\":4}},{\"id\":\"pG5sbxdl3Y\",\"type\":\"card\",\"data\":{\"card_name\":\"Ask Gemini\",\"col\":4}}]",
  "creation": "2026-10-10 14:56:46.632262",
  "custom_blocks": [],
  "docstatus": 0,
@@ -16,7 +16,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Ask Akansha Setting",
-   "link_count": 6,
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -64,9 +64,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "HNS AI Assistant App Prompt",
+   "label": "Hns AI Assistant Rule",
    "link_count": 0,
-   "link_to": "HNS AI Assistant App Prompt",
+   "link_to": "Hns AI Assistant Rule",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -74,15 +74,24 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Hns AI Assistant Rule",
+   "label": "Ask Gemini",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hns AI Report Prompt",
    "link_count": 0,
-   "link_to": "Hns AI Assistant Rule",
+   "link_to": "Hns AI Report Prompt",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2026-10-28 16:32:59.362218",
+ "modified": "2026-10-31 13:55:13.244455",
  "modified_by": "Administrator",
  "module": "HNS AI Assistant App",
  "name": "Ask Akansha",
