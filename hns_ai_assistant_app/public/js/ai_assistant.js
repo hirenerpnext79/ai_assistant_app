@@ -788,7 +788,7 @@ hns_ai_assistant_app.ReportPrompt = {
                     this.notify_no_data();
                     return;
                 }
-                this.render_dialog(report_name, prompts);
+                this.open_prompt_dialog(report_name);
             });
         } else {
             $btn = $(`
@@ -807,7 +807,7 @@ hns_ai_assistant_app.ReportPrompt = {
                 if (e.ctrlKey || e.metaKey) {
                     window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
                 } else {
-                    frappe.new_doc("Hns AI Report Prompt", { report: report_name });
+                    this.prompt_new_dialog(report_name);
                 }
             });
         }
@@ -821,14 +821,21 @@ hns_ai_assistant_app.ReportPrompt = {
         $toolbar.removeClass("hide");
     },
 
-    open_prompt_dialog: function (report_name) {
+    open_prompt_dialog: function (report_name, selected_prompt_identifier) {
         if (!this.has_report_data()) {
             this.notify_no_data();
             return;
         }
 
+        const handle_prompts = (prompts) => {
+            if (frappe.query_report && frappe.query_report.page && frappe.query_report.page.inner_toolbar) {
+                this.render_toolbar_button($(frappe.query_report.page.inner_toolbar), report_name, prompts);
+            }
+            this.render_dialog(report_name, prompts, selected_prompt_identifier);
+        };
+
         if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
-            this.render_dialog(report_name, this.prompt_cache[report_name]);
+            handle_prompts(this.prompt_cache[report_name]);
             return;
         }
 
@@ -841,13 +848,27 @@ hns_ai_assistant_app.ReportPrompt = {
                 const prompts = r.message || [];
                 if (!this.prompt_cache) this.prompt_cache = {};
                 this.prompt_cache[report_name] = prompts;
-                this.render_dialog(report_name, prompts);
+                handle_prompts(prompts);
             }
         });
     },
 
-    render_dialog: function (report_name, prompts) {
-        let selected_prompt_text = prompts.length > 0 ? prompts[0].prompt : "";
+    render_dialog: function (report_name, prompts, selected_prompt_identifier) {
+        let selected_idx = 0;
+        if (selected_prompt_identifier && prompts && prompts.length > 0) {
+            const found_idx = prompts.findIndex(p =>
+                p.name === selected_prompt_identifier ||
+                p.prompt === selected_prompt_identifier ||
+                (typeof selected_prompt_identifier === "object" && p.name === selected_prompt_identifier.name)
+            );
+            if (found_idx !== -1) {
+                selected_idx = found_idx;
+            } else {
+                selected_idx = prompts.length - 1;
+            }
+        }
+
+        let selected_prompt_text = (prompts.length > 0 && prompts[selected_idx]) ? prompts[selected_idx].prompt : "";
 
         let prompt_cards_html = "";
         if (prompts.length > 0) {
@@ -857,7 +878,7 @@ hns_ai_assistant_app.ReportPrompt = {
                 </div>
                 <div class="hns-prompt-list">
                     ${prompts.map((p, idx) => `
-                        <div class="hns-prompt-card ${idx === 0 ? 'selected' : ''}" data-idx="${idx}">
+                        <div class="hns-prompt-card ${idx === selected_idx ? 'selected' : ''}" data-idx="${idx}">
                             <div class="hns-prompt-radio"></div>
                             <div class="hns-prompt-text-preview">${frappe.utils.escape_html(p.prompt)}</div>
                         </div>
@@ -870,10 +891,10 @@ hns_ai_assistant_app.ReportPrompt = {
                     <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">
                         ${__("No prompts configured for report: <b>{0}</b>", [report_name])}
                     </div>
-                    <a href="/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}" target="_blank" class="btn btn-xs btn-default" style="display: inline-flex; align-items: center; gap: 4px;">
+                    <button type="button" class="btn btn-xs btn-default hns-empty-add-prompt-btn" style="display: inline-flex; align-items: center; gap: 4px;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        ${__("Add New Prompt for this Report")}
-                    </a>
+                        <span>${__("Add New Prompt for this Report")}</span>
+                    </button>
                 </div>
             `;
         }
@@ -972,17 +993,28 @@ hns_ai_assistant_app.ReportPrompt = {
             dialog.$wrapper.find(".modal-header").append($add_prompt_btn);
         }
 
-        $add_prompt_btn.on("click", (e) => {
-            e.preventDefault();
-            if (e.ctrlKey || e.metaKey) {
+        const open_add_prompt = (e) => {
+            if (e) e.preventDefault();
+            if (e && (e.ctrlKey || e.metaKey)) {
                 delete this.prompt_cache[report_name];
                 window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
                 return;
             }
-            this.prompt_new_dialog(report_name, dialog);
-        });
+            let add_dialog_opened = false;
+            const launch_add = () => {
+                if (add_dialog_opened) return;
+                add_dialog_opened = true;
+                this.prompt_new_dialog(report_name, dialog);
+            };
 
-        // Bind prompt card selection
+            dialog.$wrapper.one("hidden.bs.modal", launch_add);
+            dialog.hide();
+            setTimeout(launch_add, 300);
+        };
+
+        $add_prompt_btn.on("click", open_add_prompt);
+        dialog.$wrapper.find(".hns-empty-add-prompt-btn").on("click", open_add_prompt);
+
         dialog.$wrapper.find(".hns-prompt-card").on("click", function () {
             dialog.$wrapper.find(".hns-prompt-card").removeClass("selected");
             $(this).addClass("selected");
@@ -991,9 +1023,20 @@ hns_ai_assistant_app.ReportPrompt = {
                 dialog.$wrapper.find("#hns-prompt-editor").val(prompts[idx].prompt);
             }
         });
+
+        if (selected_idx > 0) {
+            const $selected_card = dialog.$wrapper.find(`.hns-prompt-card[data-idx="${selected_idx}"]`);
+            if ($selected_card.length) {
+                setTimeout(() => {
+                    $selected_card[0].scrollIntoView({ block: "nearest", behavior: "smooth" });
+                }, 100);
+            }
+        }
     },
 
     prompt_new_dialog: function (report_name, parent_dialog) {
+        let prompt_saved = false;
+
         const d = new frappe.ui.Dialog({
             title: `<div style="display:flex; align-items:center; gap:8px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1040,17 +1083,34 @@ hns_ai_assistant_app.ReportPrompt = {
                     callback: (r) => {
                         if (!r.exc) {
                             frappe.show_alert({ message: __("Prompt added successfully!"), indicator: "green" });
+                            prompt_saved = true;
                             if (this.prompt_cache) {
                                 delete this.prompt_cache[report_name];
                             }
-                            d.hide();
-                            if (parent_dialog) {
-                                parent_dialog.hide();
+                            if (parent_dialog && parent_dialog.$wrapper) {
+                                parent_dialog.$wrapper.remove();
                             }
-                            this.open_prompt_dialog(report_name);
+                            const new_prompt_doc = r.message;
+
+                            let reopened = false;
+                            const reopen_parent = () => {
+                                if (reopened) return;
+                                reopened = true;
+                                this.open_prompt_dialog(report_name, new_prompt_doc ? new_prompt_doc.name : prompt_text);
+                            };
+
+                            d.$wrapper.one("hidden.bs.modal", reopen_parent);
+                            d.hide();
+                            setTimeout(reopen_parent, 300);
                         }
                     }
                 });
+            }
+        });
+
+        d.$wrapper.on("hidden.bs.modal", () => {
+            if (!prompt_saved && parent_dialog) {
+                parent_dialog.show();
             }
         });
 
