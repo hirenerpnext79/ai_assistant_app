@@ -1281,14 +1281,22 @@ hns_ai_assistant_app.ReportPrompt = {
             return;
         }
 
+        const is_extension_installed = document.documentElement.getAttribute("data-gemini-sidepanel-installed") === "true";
+        if (!is_extension_installed) {
+            frappe.msgprint({
+                title: __("Extension Not Installed"),
+                indicator: "orange",
+                message: __("Please install the 'Ask Gemini' Chrome Extension to open the side panel and auto-post report data.")
+            });
+            return;
+        }
+
         const me = this;
         const full_prompt = this.build_full_prompt(prompt_val, report_name);
         const csv_data = this.get_report_csv_data(report_name);
 
-        // 1. Copy prompt and full report table to clipboard
         me.copy_to_clipboard(full_prompt);
 
-        // 2. Dispatch custom event to Chrome Extension to open the native Side Panel
         window.postMessage({
             type: "HNS_OPEN_GEMINI_SIDEPANEL",
             prompt: full_prompt,
@@ -1300,33 +1308,10 @@ hns_ai_assistant_app.ReportPrompt = {
             } : null
         }, "*");
 
-        const is_extension_installed = document.documentElement.getAttribute("data-gemini-sidepanel-installed") === "true";
-
-        if (is_extension_installed) {
-            frappe.show_alert({
-                message: __("✨ Gemini Side Panel opened with report data!"),
-                indicator: "green"
-            }, 4);
-        } else {
-            const sw = window.screen.availWidth || 1366;
-            const sh = window.screen.availHeight || 768;
-            const sidebar_w = Math.min(500, Math.max(420, Math.floor(sw * 0.38)));
-            const sidebar_h = Math.max(580, sh - 60);
-            const pos_x = Math.max(0, sw - sidebar_w - 10);
-            const pos_y = 30;
-            const gemini_url = "https://gemini.google.com/app";
-
-            window.open(
-                gemini_url,
-                "GeminiSidebar",
-                `width=${sidebar_w},height=${sidebar_h},top=${pos_y},left=${pos_x},resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no`
-            );
-
-            frappe.show_alert({
-                message: __("✨ Gemini window opened! Auto-pasting report screen data..."),
-                indicator: "green"
-            }, 4);
-        }
+        frappe.show_alert({
+            message: __("✨ Gemini Side Panel opened with report data!"),
+            indicator: "green"
+        }, 4);
     },
 
     copy_to_clipboard: function (text) {
