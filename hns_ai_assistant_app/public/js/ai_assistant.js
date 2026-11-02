@@ -667,9 +667,33 @@ hns_ai_assistant_app.ReportPrompt = {
         QueryReportClass.prototype.refresh = function () {
             const res = original_refresh.apply(this, arguments);
             const report_inst = this;
-            setTimeout(() => me.attach_button(report_inst), 100);
+            if (res && res.then) {
+                res.then(() => {
+                    setTimeout(() => me.attach_button(report_inst), 50);
+                });
+            } else {
+                setTimeout(() => me.attach_button(report_inst), 300);
+            }
             return res;
         };
+
+        const original_render_datatable = QueryReportClass.prototype.render_datatable;
+        if (original_render_datatable) {
+            QueryReportClass.prototype.render_datatable = function () {
+                const res = original_render_datatable.apply(this, arguments);
+                setTimeout(() => me.attach_button(this), 50);
+                return res;
+            };
+        }
+
+        const original_add_card = QueryReportClass.prototype.add_card_button_to_toolbar;
+        if (original_add_card) {
+            QueryReportClass.prototype.add_card_button_to_toolbar = function () {
+                const res = original_add_card.apply(this, arguments);
+                setTimeout(() => me.attach_button(this), 50);
+                return res;
+            };
+        }
     },
 
     bind_route_events: function () {
@@ -684,6 +708,17 @@ hns_ai_assistant_app.ReportPrompt = {
             }
             setTimeout(() => me.check_and_attach(), 300);
             setTimeout(() => me.check_and_attach(), 800);
+            setTimeout(() => me.check_and_attach(), 1500);
+            setTimeout(() => me.check_and_attach(), 2500);
+        });
+
+        let ajax_debounce = null;
+        $(document).on("ajaxComplete", () => {
+            const route = frappe.get_route ? frappe.get_route() : [];
+            if (route[0] === "query-report" || route[0] === "report") {
+                clearTimeout(ajax_debounce);
+                ajax_debounce = setTimeout(() => me.check_and_attach(), 200);
+            }
         });
     },
 
@@ -691,8 +726,12 @@ hns_ai_assistant_app.ReportPrompt = {
         const route = frappe.get_route ? frappe.get_route() : [];
         if (!route || !route.length) return;
 
-        if (route[0] === "query-report" && frappe.query_report) {
-            this.attach_button(frappe.query_report);
+        if (route[0] === "query-report") {
+            if (frappe.query_report) {
+                this.attach_button(frappe.query_report);
+            } else if (frappe.views && frappe.views.query_reports && frappe.views.query_reports[route[1]]) {
+                this.attach_button(frappe.views.query_reports[route[1]]);
+            }
         } else if (route[0] === "report" && window.cur_list && window.cur_list.page) {
             this.attach_button_to_page(window.cur_list.page, route[1]);
         }
@@ -714,12 +753,12 @@ hns_ai_assistant_app.ReportPrompt = {
             return;
         }
 
-        if ($toolbar.data("hns-loading-report") === report_name) {
+        if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
+            this.render_toolbar_button($toolbar, report_name, this.prompt_cache[report_name]);
             return;
         }
 
-        if (this.prompt_cache && this.prompt_cache[report_name] !== undefined) {
-            this.render_toolbar_button($toolbar, report_name, this.prompt_cache[report_name]);
+        if ($toolbar.data("hns-loading-report") === report_name) {
             return;
         }
 
