@@ -684,11 +684,6 @@ hns_ai_assistant_app.ReportPrompt = {
             }
             setTimeout(() => me.check_and_attach(), 300);
             setTimeout(() => me.check_and_attach(), 800);
-            setTimeout(() => me.check_and_attach(), 1500);
-        });
-
-        $(document).on("ajaxComplete", () => {
-            me.check_and_attach();
         });
     },
 
@@ -714,8 +709,8 @@ hns_ai_assistant_app.ReportPrompt = {
         if (!page || !page.inner_toolbar || !report_name) return;
 
         const $toolbar = $(page.inner_toolbar);
-        const existing_btn = $toolbar.find(".hns-report-prompt-btn");
-        if (existing_btn.length && existing_btn.attr("data-report") === report_name) {
+        const existing_group = $toolbar.find(".hns-report-toolbar-group");
+        if (existing_group.length && existing_group.attr("data-report") === report_name) {
             return;
         }
 
@@ -768,12 +763,58 @@ hns_ai_assistant_app.ReportPrompt = {
         });
     },
 
-    render_toolbar_button: function ($toolbar, report_name, prompts) {
-        $toolbar.find(".hns-report-prompt-btn").remove();
+    handle_add_prompt: function (report_name, parent_dialog, event) {
+        if (event) event.preventDefault();
+        if (this.prompt_cache) {
+            delete this.prompt_cache[report_name];
+        }
+        if (event && (event.ctrlKey || event.metaKey)) {
+            window.open(`/app/hns-ai-report-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
+            return;
+        }
 
-        let $btn;
+        if (parent_dialog) {
+            let add_dialog_opened = false;
+            const launch_add = () => {
+                if (add_dialog_opened) return;
+                add_dialog_opened = true;
+                this.prompt_new_dialog(report_name, parent_dialog);
+            };
+
+            parent_dialog.$wrapper.one("hidden.bs.modal", launch_add);
+            parent_dialog.hide();
+            setTimeout(launch_add, 300);
+        } else {
+            this.prompt_new_dialog(report_name);
+        }
+    },
+
+    handle_manage_prompts: function (report_name, event) {
+        if (event) event.preventDefault();
+        if (event && (event.ctrlKey || event.metaKey)) {
+            window.open(`/app/hns-ai-report-prompt?report=${encodeURIComponent(report_name)}`, "_blank");
+            return;
+        }
+        frappe.route_options = { report: report_name };
+        if (frappe.get_route_str() === "List/Hns AI Report Prompt/List") {
+            if (window.cur_list) {
+                window.cur_list.filter_area.clear();
+                window.cur_list.filter_area.add([["Hns AI Report Prompt", "report", "=", report_name]]);
+            }
+        } else {
+            frappe.set_route("List", "Hns AI Report Prompt");
+        }
+    },
+
+    render_toolbar_button: function ($toolbar, report_name, prompts) {
+        $toolbar.find(".hns-report-toolbar-group, .hns-report-prompt-btn").remove();
+
+        const $btn_container = $(`
+            <div class="hns-report-toolbar-group" data-report="${frappe.utils.escape_html(report_name)}" style="display: inline-flex; align-items: center; gap: 6px;"></div>
+        `);
+
         if (prompts && prompts.length > 0) {
-            $btn = $(`
+            const $ask_btn = $(`
                 <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-free-ai-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Ask Gemini" title="${__("Ask Gemini about {0}", [report_name])}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
@@ -782,7 +823,7 @@ hns_ai_assistant_app.ReportPrompt = {
                 </button>
             `);
 
-            $btn.on("click", (e) => {
+            $ask_btn.on("click", (e) => {
                 e.preventDefault();
                 if (!this.has_report_data()) {
                     this.notify_no_data();
@@ -790,33 +831,50 @@ hns_ai_assistant_app.ReportPrompt = {
                 }
                 this.open_prompt_dialog(report_name);
             });
-        } else {
-            $btn = $(`
-                <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-add-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Add Prompt" title="${__("Add Prompt for {0}", [report_name])}">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    <span>${__("Add Prompt")}</span>
-                </button>
-            `);
 
-            $btn.on("click", (e) => {
-                e.preventDefault();
-                delete this.prompt_cache[report_name];
-                if (e.ctrlKey || e.metaKey) {
-                    window.open(`/app/hns-ai-report-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
-                } else {
-                    this.prompt_new_dialog(report_name);
-                }
-            });
+            $btn_container.append($ask_btn);
         }
+
+        const $add_btn = $(`
+            <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-add-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Add Prompt" title="${__("Add Prompt for {0}", [report_name])}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>${__("Add Prompt")}</span>
+            </button>
+        `);
+
+        $add_btn.on("click", (e) => {
+            this.handle_add_prompt(report_name, null, e);
+        });
+
+        const $manage_btn = $(`
+            <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-manage-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Manage Prompt" title="${__("Manage Prompts for {0}", [report_name])}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                <span>${__("Manage Prompt")}</span>
+            </button>
+        `);
+
+        $manage_btn.on("click", (e) => {
+            this.handle_manage_prompts(report_name, e);
+        });
+
+        $btn_container.append($add_btn);
+        $btn_container.append($manage_btn);
 
         const $actions = $toolbar.find('.inner-group-button[data-label="Actions"], .inner-group-button');
         if ($actions.length) {
-            $btn.insertBefore($actions.first());
+            $btn_container.insertBefore($actions.first());
         } else {
-            $toolbar.append($btn);
+            $toolbar.append($btn_container);
         }
         $toolbar.removeClass("hide");
     },
@@ -1009,36 +1067,37 @@ hns_ai_assistant_app.ReportPrompt = {
             </button>
         `);
 
+        const $manage_prompt_btn = $(`
+            <button type="button" class="btn btn-xs hns-manage-prompt-btn hns-dialog-manage-prompt-btn" style="margin-right: 4px;" title="${__("Manage Prompts for {0}", [report_name])}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                <span>${__("Manage Prompt")}</span>
+            </button>
+        `);
+
         const $close_btn = dialog.$wrapper.find(".modal-header .btn-modal-close, .modal-header [data-dismiss='modal']");
         if ($close_btn.length) {
             $close_btn.before($add_prompt_btn);
+            $close_btn.before($manage_prompt_btn);
         } else if ($modal_actions.length) {
             $modal_actions.append($add_prompt_btn);
+            $modal_actions.append($manage_prompt_btn);
         } else {
-            dialog.$wrapper.find(".modal-header").append($add_prompt_btn);
+            dialog.$wrapper.find(".modal-header").append($add_prompt_btn).append($manage_prompt_btn);
         }
 
-        const open_add_prompt = (e) => {
-            if (e) e.preventDefault();
-            if (e && (e.ctrlKey || e.metaKey)) {
-                delete this.prompt_cache[report_name];
-                window.open(`/app/hns-ai-report-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
-                return;
-            }
-            let add_dialog_opened = false;
-            const launch_add = () => {
-                if (add_dialog_opened) return;
-                add_dialog_opened = true;
-                this.prompt_new_dialog(report_name, dialog);
-            };
-
-            dialog.$wrapper.one("hidden.bs.modal", launch_add);
+        $add_prompt_btn.on("click", (e) => this.handle_add_prompt(report_name, dialog, e));
+        $manage_prompt_btn.on("click", (e) => {
             dialog.hide();
-            setTimeout(launch_add, 300);
-        };
-
-        $add_prompt_btn.on("click", open_add_prompt);
-        dialog.$wrapper.find(".hns-empty-add-prompt-btn").on("click", open_add_prompt);
+            this.handle_manage_prompts(report_name, e);
+        });
+        dialog.$wrapper.find(".hns-empty-add-prompt-btn").on("click", (e) => this.handle_add_prompt(report_name, dialog, e));
 
         dialog.$wrapper.find(".hns-prompt-card").on("click", function (e) {
             if ($(e.target).closest(".hns-edit-prompt-btn, .hns-delete-prompt-btn").length) {
