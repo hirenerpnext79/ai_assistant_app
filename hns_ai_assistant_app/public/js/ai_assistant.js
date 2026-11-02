@@ -805,7 +805,7 @@ hns_ai_assistant_app.ReportPrompt = {
                 e.preventDefault();
                 delete this.prompt_cache[report_name];
                 if (e.ctrlKey || e.metaKey) {
-                    window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
+                    window.open(`/app/hns-ai-report-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
                 } else {
                     this.prompt_new_dialog(report_name);
                 }
@@ -858,6 +858,7 @@ hns_ai_assistant_app.ReportPrompt = {
         if (selected_prompt_identifier && prompts && prompts.length > 0) {
             const found_idx = prompts.findIndex(p =>
                 p.name === selected_prompt_identifier ||
+                p.short_name === selected_prompt_identifier ||
                 p.prompt === selected_prompt_identifier ||
                 (typeof selected_prompt_identifier === "object" && p.name === selected_prompt_identifier.name)
             );
@@ -877,12 +878,36 @@ hns_ai_assistant_app.ReportPrompt = {
                     ${__("Available Prompts ({0})", [prompts.length])}
                 </div>
                 <div class="hns-prompt-list">
-                    ${prompts.map((p, idx) => `
-                        <div class="hns-prompt-card ${idx === selected_idx ? 'selected' : ''}" data-idx="${idx}">
-                            <div class="hns-prompt-radio"></div>
-                            <div class="hns-prompt-text-preview">${frappe.utils.escape_html(p.prompt)}</div>
-                        </div>
-                    `).join("")}
+                    ${prompts.map((p, idx) => {
+                        const display_text = (p.short_name && p.short_name.trim()) ? p.short_name.trim() : p.prompt;
+
+                        return `
+                            <div class="hns-prompt-card ${idx === selected_idx ? 'selected' : ''}" data-idx="${idx}">
+                                <div class="hns-prompt-radio"></div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+                                        <div class="hns-prompt-text-preview" style="font-size: 13px; line-height: 1.45; word-break: break-word;">
+                                            ${frappe.utils.escape_html(display_text)}
+                                        </div>
+                                        <div class="hns-prompt-card-actions" style="display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: 8px;">
+                                            <button type="button" class="btn btn-xs btn-default hns-edit-prompt-btn" data-idx="${idx}" title="${__("Edit Prompt")}" style="padding: 2px 6px; font-size: 11px; display: inline-flex; align-items: center; border-radius: 4px;">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                                </svg>
+                                            </button>
+                                            <button type="button" class="btn btn-xs btn-default hns-delete-prompt-btn" data-idx="${idx}" title="${__("Delete Prompt")}" style="padding: 2px 6px; font-size: 11px; display: inline-flex; align-items: center; border-radius: 4px;">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join("")}
                 </div>
             `;
         } else {
@@ -997,7 +1022,7 @@ hns_ai_assistant_app.ReportPrompt = {
             if (e) e.preventDefault();
             if (e && (e.ctrlKey || e.metaKey)) {
                 delete this.prompt_cache[report_name];
-                window.open(`/app/hns-ai-assistant-app-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
+                window.open(`/app/hns-ai-report-prompt/new?report=${encodeURIComponent(report_name)}`, "_blank");
                 return;
             }
             let add_dialog_opened = false;
@@ -1015,13 +1040,70 @@ hns_ai_assistant_app.ReportPrompt = {
         $add_prompt_btn.on("click", open_add_prompt);
         dialog.$wrapper.find(".hns-empty-add-prompt-btn").on("click", open_add_prompt);
 
-        dialog.$wrapper.find(".hns-prompt-card").on("click", function () {
+        dialog.$wrapper.find(".hns-prompt-card").on("click", function (e) {
+            if ($(e.target).closest(".hns-edit-prompt-btn, .hns-delete-prompt-btn").length) {
+                return;
+            }
             dialog.$wrapper.find(".hns-prompt-card").removeClass("selected");
             $(this).addClass("selected");
             const idx = parseInt($(this).attr("data-idx"), 10);
             if (prompts[idx]) {
                 dialog.$wrapper.find("#hns-prompt-editor").val(prompts[idx].prompt);
             }
+        });
+
+        dialog.$wrapper.find(".hns-edit-prompt-btn").on("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const idx = parseInt($(e.currentTarget).attr("data-idx"), 10);
+            const prompt_doc = prompts[idx];
+            if (!prompt_doc) return;
+
+            if (e.ctrlKey || e.metaKey) {
+                delete this.prompt_cache[report_name];
+                window.open(`/app/hns-ai-report-prompt/${encodeURIComponent(prompt_doc.name)}`, "_blank");
+                return;
+            }
+
+            let edit_dialog_opened = false;
+            const launch_edit = () => {
+                if (edit_dialog_opened) return;
+                edit_dialog_opened = true;
+                this.prompt_edit_dialog(report_name, prompt_doc, dialog);
+            };
+
+            dialog.$wrapper.one("hidden.bs.modal", launch_edit);
+            dialog.hide();
+            setTimeout(launch_edit, 300);
+        });
+
+        dialog.$wrapper.find(".hns-delete-prompt-btn").on("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const idx = parseInt($(e.currentTarget).attr("data-idx"), 10);
+            const prompt_doc = prompts[idx];
+            if (!prompt_doc) return;
+
+            frappe.confirm(__("Are you sure you want to delete this prompt?"), () => {
+                frappe.call({
+                    method: "hns_ai_assistant_app.api.ai_handler.delete_report_prompt",
+                    args: { prompt_name: prompt_doc.name },
+                    freeze: true,
+                    freeze_message: __("Deleting Prompt..."),
+                    callback: (r) => {
+                        if (!r.exc) {
+                            frappe.show_alert({ message: __("Prompt deleted successfully!"), indicator: "orange" });
+                            if (this.prompt_cache) {
+                                delete this.prompt_cache[report_name];
+                            }
+                            if (dialog && dialog.$wrapper) {
+                                dialog.$wrapper.remove();
+                            }
+                            this.open_prompt_dialog(report_name);
+                        }
+                    }
+                });
+            });
         });
 
         if (selected_idx > 0) {
@@ -1047,12 +1129,10 @@ hns_ai_assistant_app.ReportPrompt = {
             </div>`,
             fields: [
                 {
-                    fieldname: "report",
-                    fieldtype: "Link",
-                    options: "Report",
-                    label: __("Report"),
-                    default: report_name,
-                    read_only: 1
+                    fieldname: "short_name",
+                    fieldtype: "Data",
+                    label: __("Short Name"),
+                    description: __("Enter a short name for this prompt.")
                 },
                 {
                     fieldname: "prompt",
@@ -1063,8 +1143,16 @@ hns_ai_assistant_app.ReportPrompt = {
             ],
             primary_action_label: __("Save Prompt"),
             primary_action: () => {
+                const short_name_input = d.fields_dict.short_name;
+                const short_name = (short_name_input ? short_name_input.get_value() : "").trim();
                 const prompt_input = d.fields_dict.prompt;
                 const prompt_text = (prompt_input ? prompt_input.get_value() : "").trim();
+
+                if (!short_name) {
+                    show_short_name_error(__("Short Name is required. Please enter a short name."));
+                    return;
+                }
+                clear_short_name_error();
 
                 if (!prompt_text) {
                     show_prompt_error(__("Prompt is required. Please enter a prompt."));
@@ -1076,6 +1164,7 @@ hns_ai_assistant_app.ReportPrompt = {
                     method: "hns_ai_assistant_app.api.ai_handler.add_report_prompt",
                     args: {
                         report_name: report_name,
+                        short_name: short_name,
                         prompt: prompt_text
                     },
                     freeze: true,
@@ -1096,7 +1185,7 @@ hns_ai_assistant_app.ReportPrompt = {
                             const reopen_parent = () => {
                                 if (reopened) return;
                                 reopened = true;
-                                this.open_prompt_dialog(report_name, new_prompt_doc ? new_prompt_doc.name : prompt_text);
+                                this.open_prompt_dialog(report_name, new_prompt_doc ? (new_prompt_doc.name || new_prompt_doc.short_name) : prompt_text);
                             };
 
                             d.$wrapper.one("hidden.bs.modal", reopen_parent);
@@ -1114,10 +1203,50 @@ hns_ai_assistant_app.ReportPrompt = {
             }
         });
 
+        const $short_name_wrapper = d.fields_dict.short_name.$wrapper;
+        const $short_name_input = $short_name_wrapper.find("input");
+
+        if (!$short_name_wrapper.find("label.control-label .text-danger, label.control-label .reqd").length) {
+            $short_name_wrapper.find("label.control-label").append(' <span class="text-danger">*</span>');
+        }
+
+        const clear_short_name_error = () => {
+            $short_name_wrapper.find(".hns-dialog-error-msg").remove();
+            $short_name_input.css({
+                "border-color": "",
+                "box-shadow": ""
+            });
+        };
+
+        const show_short_name_error = (msg) => {
+            clear_short_name_error();
+            $short_name_input.css({
+                "border-color": "#ef4444",
+                "box-shadow": "0 0 0 1px #ef4444"
+            });
+            $short_name_wrapper.append(`
+                <div class="hns-dialog-error-msg" style="color: #ef4444; font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>${frappe.utils.escape_html(msg)}</span>
+                </div>
+            `);
+            $short_name_input.focus();
+        };
+
+        $short_name_input.on("input keyup change", () => {
+            clear_short_name_error();
+        });
+
         const $prompt_wrapper = d.fields_dict.prompt.$wrapper;
         const $prompt_textarea = $prompt_wrapper.find("textarea");
 
-        $prompt_wrapper.find("label.control-label").append(' <span class="text-danger">*</span>');
+        if (!$prompt_wrapper.find("label.control-label .text-danger, label.control-label .reqd").length) {
+            $prompt_wrapper.find("label.control-label").append(' <span class="text-danger">*</span>');
+        }
 
         const clear_prompt_error = () => {
             $prompt_wrapper.find(".hns-dialog-error-msg").remove();
@@ -1151,6 +1280,177 @@ hns_ai_assistant_app.ReportPrompt = {
         });
 
         d.show();
+        setTimeout(() => {
+            $short_name_input.focus();
+        }, 150);
+    },
+
+    prompt_edit_dialog: function (report_name, prompt_doc, parent_dialog) {
+        let prompt_saved = false;
+
+        const d = new frappe.ui.Dialog({
+            title: `<div style="display:flex; align-items:center; gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span>${__("Edit Prompt - {0}", [prompt_doc.short_name || report_name])}</span>
+            </div>`,
+            fields: [
+                {
+                    fieldname: "short_name",
+                    fieldtype: "Data",
+                    label: __("Short Name"),
+                    default: prompt_doc.short_name || "",
+                    description: __("Enter a short name for this prompt.")
+                },
+                {
+                    fieldname: "prompt",
+                    fieldtype: "Small Text",
+                    label: __("Prompt"),
+                    default: prompt_doc.prompt || "",
+                    description: __("Enter the reusable AI analysis prompt for this report.")
+                }
+            ],
+            primary_action_label: __("Update Prompt"),
+            primary_action: () => {
+                const short_name_input = d.fields_dict.short_name;
+                const short_name = (short_name_input ? short_name_input.get_value() : "").trim();
+                const prompt_input = d.fields_dict.prompt;
+                const prompt_text = (prompt_input ? prompt_input.get_value() : "").trim();
+
+                if (!short_name) {
+                    show_short_name_error(__("Short Name is required. Please enter a short name."));
+                    return;
+                }
+                clear_short_name_error();
+
+                if (!prompt_text) {
+                    show_prompt_error(__("Prompt is required. Please enter a prompt."));
+                    return;
+                }
+                clear_prompt_error();
+
+                frappe.call({
+                    method: "hns_ai_assistant_app.api.ai_handler.update_report_prompt",
+                    args: {
+                        prompt_name: prompt_doc.name,
+                        short_name: short_name,
+                        prompt: prompt_text
+                    },
+                    freeze: true,
+                    freeze_message: __("Updating Prompt..."),
+                    callback: (r) => {
+                        if (!r.exc) {
+                            frappe.show_alert({ message: __("Prompt updated successfully!"), indicator: "green" });
+                            prompt_saved = true;
+                            if (this.prompt_cache) {
+                                delete this.prompt_cache[report_name];
+                            }
+                            if (parent_dialog && parent_dialog.$wrapper) {
+                                parent_dialog.$wrapper.remove();
+                            }
+                            let reopened = false;
+                            const reopen_parent = () => {
+                                if (reopened) return;
+                                reopened = true;
+                                this.open_prompt_dialog(report_name, prompt_doc.name);
+                            };
+                            d.$wrapper.one("hidden.bs.modal", reopen_parent);
+                            d.hide();
+                            setTimeout(reopen_parent, 300);
+                        }
+                    }
+                });
+            }
+        });
+
+        d.$wrapper.on("hidden.bs.modal", () => {
+            if (!prompt_saved && parent_dialog) {
+                parent_dialog.show();
+            }
+        });
+
+        const $short_name_wrapper = d.fields_dict.short_name.$wrapper;
+        const $short_name_input = $short_name_wrapper.find("input");
+
+        if (!$short_name_wrapper.find("label.control-label .text-danger, label.control-label .reqd").length) {
+            $short_name_wrapper.find("label.control-label").append(' <span class="text-danger">*</span>');
+        }
+
+        const clear_short_name_error = () => {
+            $short_name_wrapper.find(".hns-dialog-error-msg").remove();
+            $short_name_input.css({
+                "border-color": "",
+                "box-shadow": ""
+            });
+        };
+
+        const show_short_name_error = (msg) => {
+            clear_short_name_error();
+            $short_name_input.css({
+                "border-color": "#ef4444",
+                "box-shadow": "0 0 0 1px #ef4444"
+            });
+            $short_name_wrapper.append(`
+                <div class="hns-dialog-error-msg" style="color: #ef4444; font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>${frappe.utils.escape_html(msg)}</span>
+                </div>
+            `);
+            $short_name_input.focus();
+        };
+
+        $short_name_input.on("input keyup change", () => {
+            clear_short_name_error();
+        });
+
+        const $prompt_wrapper = d.fields_dict.prompt.$wrapper;
+        const $prompt_textarea = $prompt_wrapper.find("textarea");
+
+        if (!$prompt_wrapper.find("label.control-label .text-danger, label.control-label .reqd").length) {
+            $prompt_wrapper.find("label.control-label").append(' <span class="text-danger">*</span>');
+        }
+
+        const clear_prompt_error = () => {
+            $prompt_wrapper.find(".hns-dialog-error-msg").remove();
+            $prompt_textarea.css({
+                "border-color": "",
+                "box-shadow": ""
+            });
+        };
+
+        const show_prompt_error = (msg) => {
+            clear_prompt_error();
+            $prompt_textarea.css({
+                "border-color": "#ef4444",
+                "box-shadow": "0 0 0 1px #ef4444"
+            });
+            $prompt_wrapper.append(`
+                <div class="hns-dialog-error-msg" style="color: #ef4444; font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>${frappe.utils.escape_html(msg)}</span>
+                </div>
+            `);
+            $prompt_textarea.focus();
+        };
+
+        $prompt_textarea.on("input keyup change", () => {
+            clear_prompt_error();
+        });
+
+        d.show();
+        setTimeout(() => {
+            $short_name_input.focus();
+        }, 150);
     },
 
     build_full_prompt: function (prompt_val, report_name) {

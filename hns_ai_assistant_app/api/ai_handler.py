@@ -312,7 +312,7 @@ def get_report_prompts(report_name):
         return frappe.get_all(
             "Hns AI Report Prompt",
             filters={"report": report_name, "is_active": 1},
-            fields=["name", "report", "prompt"],
+            fields=["name", "report", "short_name", "prompt"],
             order_by="creation asc",
             ignore_permissions=True,
         )
@@ -322,13 +322,18 @@ def get_report_prompts(report_name):
 
 
 @frappe.whitelist()
-def add_report_prompt(report_name, prompt):
+def add_report_prompt(report_name, prompt, short_name=None):
     if not report_name or not prompt:
         frappe.throw(frappe._("Report and prompt are required."))
     try:
+        short_name_val = (short_name or "").strip()
+        if not short_name_val:
+            short_name_val = prompt.strip()[:50]
+
         doc = frappe.get_doc({
             "doctype": "Hns AI Report Prompt",
             "report": report_name,
+            "short_name": short_name_val,
             "prompt": prompt.strip(),
             "is_active": 1,
         })
@@ -338,6 +343,36 @@ def add_report_prompt(report_name, prompt):
     except Exception as e:
         frappe.log_error(title="add_report_prompt Error", message=str(e))
         frappe.throw(frappe._("Could not save prompt: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def update_report_prompt(prompt_name, prompt, short_name=None):
+    if not prompt_name or not prompt:
+        frappe.throw(frappe._("Prompt name and prompt are required."))
+    try:
+        doc = frappe.get_doc("Hns AI Report Prompt", prompt_name)
+        if short_name:
+            doc.short_name = short_name.strip()
+        doc.prompt = prompt.strip()
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+        return doc.as_dict()
+    except Exception as e:
+        frappe.log_error(title="update_report_prompt Error", message=str(e))
+        frappe.throw(frappe._("Could not update prompt: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def delete_report_prompt(prompt_name):
+    if not prompt_name:
+        frappe.throw(frappe._("Prompt name is required."))
+    try:
+        frappe.delete_doc("Hns AI Report Prompt", prompt_name, ignore_permissions=True)
+        frappe.db.commit()
+        return True
+    except Exception as e:
+        frappe.log_error(title="delete_report_prompt Error", message=str(e))
+        frappe.throw(frappe._("Could not delete prompt: {0}").format(str(e)))
 
 
 @frappe.whitelist()

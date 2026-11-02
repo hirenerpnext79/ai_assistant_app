@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "report",
+  "short_name",
   "prompt",
   "is_active"
  ],
@@ -30,12 +31,19 @@
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Is Active"
+  },
+  {
+   "fieldname": "short_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Short Name",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-22 18:02:32.002222",
+ "modified": "2026-11-02 10:16:13.291229",
  "modified_by": "Administrator",
  "module": "HNS AI Assistant App",
  "name": "Hns AI Report Prompt",
