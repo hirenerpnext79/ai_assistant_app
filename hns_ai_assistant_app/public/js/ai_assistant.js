@@ -748,8 +748,8 @@ hns_ai_assistant_app.ReportPrompt = {
         if (!page || !page.inner_toolbar || !report_name) return;
 
         const $toolbar = $(page.inner_toolbar);
-        const existing_group = $toolbar.find(".hns-report-toolbar-group");
-        if (existing_group.length && existing_group.attr("data-report") === report_name) {
+        const existing_btn = $toolbar.find(".hns-report-prompt-btn");
+        if (existing_btn.length && existing_btn.attr("data-report") === report_name) {
             return;
         }
 
@@ -848,12 +848,9 @@ hns_ai_assistant_app.ReportPrompt = {
     render_toolbar_button: function ($toolbar, report_name, prompts) {
         $toolbar.find(".hns-report-toolbar-group, .hns-report-prompt-btn").remove();
 
-        const $btn_container = $(`
-            <div class="hns-report-toolbar-group" data-report="${frappe.utils.escape_html(report_name)}" style="display: inline-flex; align-items: center; gap: 6px;"></div>
-        `);
-
+        let $btn;
         if (prompts && prompts.length > 0) {
-            const $ask_btn = $(`
+            $btn = $(`
                 <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-free-ai-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Ask Gemini" title="${__("Ask Gemini about {0}", [report_name])}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
@@ -862,7 +859,7 @@ hns_ai_assistant_app.ReportPrompt = {
                 </button>
             `);
 
-            $ask_btn.on("click", (e) => {
+            $btn.on("click", (e) => {
                 e.preventDefault();
                 if (!this.has_report_data()) {
                     this.notify_no_data();
@@ -870,50 +867,27 @@ hns_ai_assistant_app.ReportPrompt = {
                 }
                 this.open_prompt_dialog(report_name);
             });
+        } else {
+            $btn = $(`
+                <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-add-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Add Prompt" title="${__("Add Prompt for {0}", [report_name])}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>${__("Add Prompt")}</span>
+                </button>
+            `);
 
-            $btn_container.append($ask_btn);
+            $btn.on("click", (e) => {
+                this.handle_add_prompt(report_name, null, e);
+            });
         }
-
-        const $add_btn = $(`
-            <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-add-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Add Prompt" title="${__("Add Prompt for {0}", [report_name])}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                <span>${__("Add Prompt")}</span>
-            </button>
-        `);
-
-        $add_btn.on("click", (e) => {
-            this.handle_add_prompt(report_name, null, e);
-        });
-
-        const $manage_btn = $(`
-            <button type="button" class="btn btn-default ellipsis hns-report-prompt-btn hns-manage-prompt-btn" data-report="${frappe.utils.escape_html(report_name)}" data-label="Manage Prompt" title="${__("Manage Prompts for {0}", [report_name])}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="8" y1="6" x2="21" y2="6"></line>
-                    <line x1="8" y1="12" x2="21" y2="12"></line>
-                    <line x1="8" y1="18" x2="21" y2="18"></line>
-                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                </svg>
-                <span>${__("Manage Prompt")}</span>
-            </button>
-        `);
-
-        $manage_btn.on("click", (e) => {
-            this.handle_manage_prompts(report_name, e);
-        });
-
-        $btn_container.append($add_btn);
-        $btn_container.append($manage_btn);
 
         const $actions = $toolbar.find('.inner-group-button[data-label="Actions"], .inner-group-button');
         if ($actions.length) {
-            $btn_container.insertBefore($actions.first());
+            $btn.insertBefore($actions.first());
         } else {
-            $toolbar.append($btn_container);
+            $toolbar.append($btn);
         }
         $toolbar.removeClass("hide");
     },
