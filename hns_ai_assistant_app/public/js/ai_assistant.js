@@ -1039,8 +1039,20 @@ hns_ai_assistant_app.ReportPrompt = {
                     return;
                 }
 
+                let short_name_val = "";
+                const $selected_card = dialog.$wrapper.find(".hns-prompt-card.selected");
+                if ($selected_card.length) {
+                    const card_idx = parseInt($selected_card.data("idx"), 10);
+                    if (prompts && prompts[card_idx]) {
+                        short_name_val = (prompts[card_idx].short_name || "").trim();
+                    }
+                }
+                if (!short_name_val) {
+                    short_name_val = prompt_val.substring(0, 50);
+                }
+
                 dialog.hide();
-                this.trigger_desktop_gemini(prompt_val, report_name);
+                this.trigger_desktop_gemini(prompt_val, report_name, short_name_val);
             }
         });
 
@@ -1165,6 +1177,7 @@ hns_ai_assistant_app.ReportPrompt = {
                     callback: (r) => {
                         if (!r.exc) {
                             frappe.show_alert({ message: __("Prompt deleted successfully!"), indicator: "orange" });
+                            this.log_report_query(report_name, prompt_doc.prompt, prompt_doc.short_name, "Delete");
                             if (this.prompt_cache) {
                                 delete this.prompt_cache[report_name];
                             }
@@ -1245,6 +1258,7 @@ hns_ai_assistant_app.ReportPrompt = {
                         if (!r.exc) {
                             frappe.show_alert({ message: __("Prompt added successfully!"), indicator: "green" });
                             prompt_saved = true;
+                            this.log_report_query(report_name, prompt_text, short_name, "Add");
                             if (this.prompt_cache) {
                                 delete this.prompt_cache[report_name];
                             }
@@ -1416,6 +1430,7 @@ hns_ai_assistant_app.ReportPrompt = {
                         if (!r.exc) {
                             frappe.show_alert({ message: __("Prompt updated successfully!"), indicator: "green" });
                             prompt_saved = true;
+                            this.log_report_query(report_name, prompt_text, short_name, "Edit");
                             if (this.prompt_cache) {
                                 delete this.prompt_cache[report_name];
                             }
@@ -1647,11 +1662,27 @@ hns_ai_assistant_app.ReportPrompt = {
         }
     },
 
-    trigger_desktop_gemini: function (prompt_val, report_name) {
+    log_report_query: function (report_name, prompt_val, short_name_val, action) {
+        if (!report_name || !prompt_val) return;
+
+        frappe.call({
+            method: "hns_ai_assistant_app.api.ai_handler.log_report_query",
+            args: {
+                report_name: report_name,
+                prompt: prompt_val,
+                short_name: short_name_val || "",
+                action: action || "Ask Gemini"
+            }
+        });
+    },
+
+    trigger_desktop_gemini: function (prompt_val, report_name, short_name_val) {
         if (!this.has_report_data()) {
             this.notify_no_data();
             return;
         }
+
+        this.log_report_query(report_name, prompt_val, short_name_val, "Ask Gemini");
 
         const is_extension_installed = document.documentElement.getAttribute("data-gemini-sidepanel-installed") === "true";
         if (!is_extension_installed) {

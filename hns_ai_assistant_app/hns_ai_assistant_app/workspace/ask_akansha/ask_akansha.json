@@ -75,7 +75,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Ask Gemini",
-   "link_count": 1,
+   "link_count": 2,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -89,9 +89,19 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hns AI Report Log",
+   "link_count": 0,
+   "link_to": "Hns AI Report Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-10-31 13:55:13.244455",
+ "modified": "2026-11-02 19:01:27.395106",
  "modified_by": "Administrator",
  "module": "HNS AI Assistant App",
  "name": "Ask Akansha",

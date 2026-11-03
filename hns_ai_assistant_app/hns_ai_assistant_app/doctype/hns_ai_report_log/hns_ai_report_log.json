@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-11-02 18:49:13.560555",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "report",
+  "column_break_qwaf",
+  "action",
+  "section_break_xzot",
+  "short_name",
+  "prompt"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "report",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Report",
+   "options": "Report",
+   "read_only": 1
+  },
+  {
+   "fieldname": "short_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Short Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "prompt",
+   "fieldtype": "Code",
+   "label": "Prompt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Action",
+   "options": "\nAdd\nEdit\nDelete\nAsk Gemini",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_qwaf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_xzot",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-03 09:55:27.460019",
+ "modified_by": "Administrator",
+ "module": "HNS AI Assistant App",
+ "name": "Hns AI Report Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

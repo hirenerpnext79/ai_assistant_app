@@ -376,6 +376,32 @@ def delete_report_prompt(prompt_name):
 
 
 @frappe.whitelist()
+def log_report_query(report_name, prompt, short_name=None, action="Ask Gemini"):
+    if not report_name or not prompt:
+        return {"status": "skipped", "message": "Report name and prompt are required."}
+
+    try:
+        short_val = (short_name or "").strip()
+        if not short_val:
+            short_val = prompt.strip()[:50]
+
+        doc = frappe.get_doc({
+            "doctype": "Hns AI Report Log",
+            "user": frappe.session.user,
+            "report": report_name,
+            "short_name": short_val,
+            "prompt": prompt.strip(),
+            "action": (action or "Ask Gemini").strip(),
+        })
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return {"status": "success", "name": doc.name}
+    except Exception as e:
+        frappe.log_error(title="log_report_query Error", message=frappe.get_traceback())
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
 def download_chrome_extension():
     try:
         import io
